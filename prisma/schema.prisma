@@ -8,14 +8,17 @@ datasource db {
 }
 
 model User {
-  id                  String   @id @default(cuid())
+  id                  String        @id @default(cuid())
   name                String
-  email               String   @unique
-  cpf                 String?  @unique
+  email               String        @unique
+  cpf                 String?       @unique
   password            String
-  onboardingCompleted Boolean  @default(false)
-  createdAt           DateTime @default(now())
+  avatarUrl           String?
+  onboardingCompleted Boolean       @default(false)
+  createdAt           DateTime      @default(now())
   clients             Client[]
+  whatsappInstances   WhatsappInstance[]
+  leads               Lead[]
 }
 
 model Client {
@@ -28,4 +31,47 @@ model Client {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+  leads       Lead[]
+}
+
+model WhatsappInstance {
+  id           String   @id @default(cuid())
+  instanceName String
+  phone        String?
+  status       String   @default("disconnected") // disconnected | connecting | connected
+  qrCode       String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  leads        Lead[]
+}
+
+model Lead {
+  id                String        @id @default(cuid())
+  name              String?
+  phone             String
+  status            String        @default("new") // new | attending | closed | lost
+  adSource          String?       // qual anúncio gerou
+  adCampaign        String?
+  notes             String?
+  closedAt          DateTime?
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId          String?
+  client            Client?       @relation(fields: [clientId], references: [id])
+  whatsappInstanceId String?
+  whatsappInstance  WhatsappInstance? @relation(fields: [whatsappInstanceId], references: [id])
+  conversations     Conversation[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromMe    Boolean  @default(false)
+  message   String
+  mediaUrl  String?
+  timestamp DateTime @default(now())
 }

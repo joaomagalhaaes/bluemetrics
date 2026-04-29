@@ -5,9 +5,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   BarChart2, LogOut, LayoutDashboard,
-  MessageCircle, Zap, Video, FileText, Settings, TrendingUp
+  MessageCircle, Zap, Video, FileText,
+  Settings, TrendingUp, Users
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
+import { Avatar } from './ProfileMenu'
 
 const navGroups = [
   {
@@ -17,6 +19,12 @@ const navGroups = [
       { href: '/dashboard/messages', icon: MessageCircle,   label: 'Conversas & WhatsApp' },
       { href: '/dashboard/pixel',    icon: Zap,             label: 'Pixel & Conversões' },
       { href: '/dashboard/videos',   icon: Video,           label: 'Vídeos' },
+    ],
+  },
+  {
+    label: 'CRM',
+    items: [
+      { href: '/dashboard/crm',      icon: Users,           label: 'Leads & CRM' },
     ],
   },
   {
@@ -37,11 +45,11 @@ const navGroups = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [userName, setUserName] = useState('')
+  const [user, setUser] = useState<{ name: string; email: string; avatarUrl?: string } | null>(null)
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => setUserName(d.name ?? ''))
+    fetch('/api/auth/me').then(r => r.json()).then(setUser)
     const tick = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(tick)
   }, [])
@@ -56,8 +64,9 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 min-h-screen bg-white dark:bg-gray-900 border-r border-blue-100 dark:border-gray-800 flex flex-col">
-      {/* Logo + nome do usuário */}
-      <div className="px-5 py-5 border-b border-blue-100 dark:border-gray-800">
+
+      {/* Logo */}
+      <div className="px-5 py-4 border-b border-blue-100 dark:border-gray-800">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 bg-blue-400 rounded-xl flex items-center justify-center shadow-md shadow-blue-400/30 flex-shrink-0">
             <BarChart2 size={18} className="text-white" />
@@ -68,18 +77,24 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Nome do usuário */}
-        {userName && (
-          <div className="bg-blue-50 dark:bg-gray-800 rounded-xl px-3 py-2.5 mb-3">
-            <p className="text-xs text-gray-400 leading-none mb-0.5">Bem-vindo,</p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{userName}</p>
-          </div>
+        {/* Avatar + nome clicável */}
+        {user && (
+          <Link href="/dashboard/profile"
+            className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors group">
+            <Avatar name={user.name} url={user.avatarUrl} size={38} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
+                {user.name.split(' ')[0]}
+              </p>
+              <p className="text-xs text-gray-400 truncate">{user.email}</p>
+            </div>
+          </Link>
         )}
 
         {/* Data e hora */}
-        <div className="text-center">
-          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 capitalize">{dateStr}</p>
-          <p className="text-lg font-bold text-blue-400 tracking-widest mt-0.5">{timeStr}</p>
+        <div className="mt-3 text-center bg-blue-50 dark:bg-gray-800 rounded-xl py-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{dateStr}</p>
+          <p className="text-base font-bold text-blue-400 tracking-widest">{timeStr}</p>
         </div>
       </div>
 
@@ -99,8 +114,7 @@ export default function Sidebar() {
                       active
                         ? 'bg-blue-400 text-white shadow-md shadow-blue-400/20'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-gray-800 hover:text-blue-500 dark:hover:text-blue-400'
-                    }`}
-                  >
+                    }`}>
                     <Icon size={17} />
                     {label}
                   </Link>
@@ -111,11 +125,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Rodapé: toggle + logout */}
+      {/* Rodapé */}
       <div className="px-4 py-4 border-t border-blue-100 dark:border-gray-800 space-y-2">
         <ThemeToggle />
         <button onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors">
           <LogOut size={17} /> Sair
         </button>
       </div>
