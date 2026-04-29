@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, MessageCircle, Zap, Video, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, Zap, Video, Settings } from 'lucide-react'
 
 const items = [
   { href: '/dashboard',          icon: LayoutDashboard, label: 'Painel' },
-  { href: '/dashboard/messages', icon: MessageCircle,   label: 'Conversas' },
+  { href: '/dashboard/crm',      icon: Users,           label: 'CRM' },
   { href: '/dashboard/pixel',    icon: Zap,             label: 'Pixel' },
   { href: '/dashboard/videos',   icon: Video,           label: 'Vídeos' },
   { href: '/dashboard/settings', icon: Settings,        label: 'Config.' },

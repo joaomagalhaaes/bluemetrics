@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import {
   BarChart2, LogOut, LayoutDashboard,
   MessageCircle, Zap, Video, FileText,
-  Settings, TrendingUp, Users
+  Settings, TrendingUp, Users, Smartphone
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { Avatar } from './ProfileMenu'
@@ -24,7 +24,8 @@ const navGroups = [
   {
     label: 'CRM',
     items: [
-      { href: '/dashboard/crm',      icon: Users,           label: 'Leads & CRM' },
+      { href: '/dashboard/crm',       icon: Users,       label: 'Leads & CRM' },
+      { href: '/dashboard/whatsapp',  icon: Smartphone,  label: 'Conectar WhatsApp' },
     ],
   },
   {
