@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-const EVOLUTION_URL = process.env.EVOLUTION_API_URL ?? ''
+const EVOLUTION_URL = (process.env.EVOLUTION_API_URL ?? '').replace(/\/$/, '')
 const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY ?? ''
 
 export async function GET(req: NextRequest) {
