@@ -19,6 +19,7 @@ model User {
   clients             Client[]
   whatsappInstances   WhatsappInstance[]
   leads               Lead[]
+  appointments        Appointment[]
 }
 
 model Client {
@@ -74,4 +75,17 @@ model Conversation {
   message   String
   mediaUrl  String?
   timestamp DateTime @default(now())
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  clientName  String        // nome do cliente agendado
+  service     String?       // serviço agendado
+  value       Float         // valor do agendamento em R$
+  date        DateTime      // data/hora do agendamento
+  notes       String?
+  status      String   @default("scheduled") // scheduled | completed | cancelled
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
 }
