@@ -111,9 +111,14 @@ export async function fetchMetaMetrics(
   accessToken: string,
   datePreset = 'last_30d'
 ): Promise<FullMetrics> {
-  const url = `https://graph.facebook.com/v20.0/act_${adAccountId}/insights?fields=${FIELDS}&date_preset=${datePreset}&access_token=${accessToken}`
+  const cleanId = adAccountId.replace(/^act_/, '')
+  const url = `https://graph.facebook.com/v21.0/act_${cleanId}/insights?fields=${FIELDS}&date_preset=${datePreset}&access_token=${accessToken}`
   const res = await fetch(url)
-  if (!res.ok) throw new Error(`Meta API error: ${res.status}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    console.error('Meta API error:', res.status, err)
+    throw new Error(`Meta API error: ${res.status} - ${err?.error?.message ?? 'Unknown'}`)
+  }
 
   const json = await res.json()
   const d = json.data?.[0] ?? {}
@@ -192,11 +197,12 @@ export async function fetchMetaMetrics(
 }
 
 export async function fetchMonthlyData(adAccountId: string, accessToken: string): Promise<MonthlyData[]> {
+  const cleanId = adAccountId.replace(/^act_/, '')
   const months = getLast6Months()
   const results: MonthlyData[] = []
   for (const { label, since, until } of months) {
     const fields = 'spend,impressions,clicks,actions,purchase_roas'
-    const url = `https://graph.facebook.com/v20.0/act_${adAccountId}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&access_token=${accessToken}`
+    const url = `https://graph.facebook.com/v21.0/act_${cleanId}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&access_token=${accessToken}`
     try {
       const res = await fetch(url)
       const data = await res.json()

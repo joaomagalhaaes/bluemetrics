@@ -173,19 +173,31 @@ export async function GET(req: NextRequest) {
   if (clientId) {
     client = await prisma.client.findFirst({ where: { id: clientId, userId: session.userId } })
   } else {
-    client = await prisma.client.findFirst({ where: { userId: session.userId } })
+    // Busca o client mais recente que TEM token
+    client = await prisma.client.findFirst({
+      where: { userId: session.userId, accessToken: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    })
+    // Fallback: qualquer client
+    if (!client) client = await prisma.client.findFirst({ where: { userId: session.userId } })
   }
 
   if (!client?.accessToken || !client?.adAccountId) {
     return NextResponse.json({ demo: true, campaigns: getMockCampaigns() })
   }
 
+  // Remove 'act_' se o usuário colocou na frente
+  const adAccountId = client.adAccountId.replace(/^act_/, '')
+
   try {
     const campRes = await fetch(
-      `${META_API}/act_${client.adAccountId}/campaigns?fields=name,status,objective&access_token=${client.accessToken}`
+      `${META_API}/act_${adAccountId}/campaigns?fields=name,status,objective&access_token=${client.accessToken}`
     )
     const campData = await campRes.json()
-    if (campData.error) throw new Error(campData.error.message)
+    if (campData.error) {
+      console.error('Meta campaigns error:', campData.error)
+      throw new Error(campData.error.message)
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const campaigns = await Promise.all((campData.data ?? []).map(async (camp: any) => {
