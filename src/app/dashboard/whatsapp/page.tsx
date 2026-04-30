@@ -67,10 +67,15 @@ export default function WhatsAppPage() {
     const data = await res.json()
     if (res.ok) {
       setActivatedOk(instanceName)
-      setTimeout(() => setActivatedOk(null), 4000)
+      setTimeout(() => setActivatedOk(null), 8000)
     } else {
-      setActivateError(data.error ?? 'Erro ao ativar')
-      setTimeout(() => setActivateError(null), 5000)
+      // Mostra a webhook URL para configuração manual
+      const manualUrl = data.webhookUrl ?? webhookUrl
+      setActivateError(
+        data.error
+          ? `${data.error}`
+          : 'Erro ao ativar webhook automaticamente.'
+      )
     }
     setActivating(null)
   }
@@ -211,10 +216,31 @@ export default function WhatsAppPage() {
         </div>
       </div>
 
-      {/* Erro global */}
+      {/* Erro — mostra instrução manual */}
       {activateError && (
-        <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl text-sm text-red-600 dark:text-red-400">
-          {activateError}
+        <div className="mb-4 px-4 py-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
+          <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-2">Configure o webhook manualmente:</p>
+          <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">{activateError}</p>
+          <ol className="text-xs text-amber-600 dark:text-amber-400 space-y-1 list-decimal list-inside">
+            <li>Acesse o painel do <strong>Evolution API</strong></li>
+            <li>Vá em <strong>Configurações</strong> da instância</li>
+            <li>Em <strong>Webhook</strong>, cole esta URL:</li>
+          </ol>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="flex-1 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-3 py-2 rounded-lg truncate">
+              {webhookUrl}
+            </code>
+            <button onClick={copyWebhook} className="px-3 py-2 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors shrink-0">
+              {copied ? 'Copiado!' : 'Copiar'}
+            </button>
+          </div>
+          <ol start={4} className="text-xs text-amber-600 dark:text-amber-400 mt-2 list-decimal list-inside">
+            <li>Marque o evento <strong>MESSAGES_UPSERT</strong></li>
+            <li>Salve — pronto, as mensagens vão chegar no CRM!</li>
+          </ol>
+          <button onClick={() => setActivateError(null)} className="mt-2 text-xs text-amber-500 hover:text-amber-600 font-medium">
+            Fechar
+          </button>
         </div>
       )}
 
