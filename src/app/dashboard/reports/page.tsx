@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileText, Download, RefreshCw, Calendar } from 'lucide-react'
+import { FileText, Download, RefreshCw, Calendar, CalendarCheck } from 'lucide-react'
 
 interface ReportMetrics {
   spend: number; impressions: number; clicks: number; ctr: number
@@ -10,12 +10,23 @@ interface ReportMetrics {
   videoPlays: number; postEngagements: number
 }
 interface Client { id: string; name: string }
+interface Appointment {
+  id: string; clientName: string; service: string | null
+  value: number; date: string; status: string
+}
+interface AppointmentSummary {
+  total: number; totalValue: number
+  completed: number; completedValue: number
+  scheduled: number; cancelled: number
+}
 
 export default function ReportsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [clientId, setClientId] = useState('')
   const [period, setPeriod] = useState('this_month')
   const [data, setData] = useState<ReportMetrics | null>(null)
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [apptSummary, setApptSummary] = useState<AppointmentSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState(false)
 
@@ -28,15 +39,21 @@ export default function ReportsPage() {
     setLoading(true)
     setGenerated(false)
     try {
-      const res = await fetch(`/api/meta/metrics?clientId=${clientId}&datePreset=${period}`)
-      const json = await res.json()
-      const m = json.metrics
+      const [metricsRes, apptRes] = await Promise.all([
+        fetch(`/api/meta/metrics?clientId=${clientId}&datePreset=${period}`),
+        fetch(`/api/appointments?period=${period === 'this_month' || period === 'last_30d' ? 'month' : period === 'last_7d' || period === 'today' || period === 'yesterday' ? 'week' : 'all'}`),
+      ])
+      const metricsJson = await metricsRes.json()
+      const apptJson = await apptRes.json()
+      const m = metricsJson.metrics
       setData({
         spend: m.spend, impressions: m.impressions, clicks: m.clicks, ctr: m.ctr,
         cpc: m.cpc, cpm: m.cpm, reach: m.reach, roas: m.roas,
         conversions: m.conversions, conversationsStarted: m.conversationsStarted,
         leads: m.leads, videoPlays: m.videoPlays, postEngagements: m.postEngagements,
       })
+      setAppointments(apptJson.appointments ?? [])
+      setApptSummary(apptJson.summary ?? null)
       setGenerated(true)
     } finally { setLoading(false) }
   }
@@ -59,7 +76,30 @@ export default function ReportsPage() {
       `Leads,"${fmt.number(data.leads)}"`,
       `Reproduções de Vídeo,"${fmt.number(data.videoPlays)}"`,
       `Engajamentos,"${fmt.number(data.postEngagements)}"`,
+      '',
+      'AGENDAMENTOS',
+      `Total de agendamentos,"${apptSummary?.total ?? 0}"`,
+      `Valor total,"${fmt.currency(apptSummary?.totalValue ?? 0)}"`,
+      `Realizados,"${apptSummary?.completed ?? 0}"`,
+      `Valor realizado,"${fmt.currency(apptSummary?.completedValue ?? 0)}"`,
+      `Agendados,"${apptSummary?.scheduled ?? 0}"`,
+      `Cancelados,"${apptSummary?.cancelled ?? 0}"`,
+      '',
+      'RESUMO FINANCEIRO',
+      `Investido em anúncios,"${fmt.currency(data.spend)}"`,
+      `Faturado (agendamentos realizados),"${fmt.currency(apptSummary?.completedValue ?? 0)}"`,
+      `Lucro,"${fmt.currency((apptSummary?.completedValue ?? 0) - data.spend)}"`,
+      `ROI,"${data.spend > 0 ? (((apptSummary?.completedValue ?? 0) / data.spend - 1) * 100).toFixed(0) : 0}%"`,
     ]
+
+    if (appointments.length > 0) {
+      lines.push('', 'DETALHAMENTO DOS AGENDAMENTOS', 'Cliente,Serviço,Valor,Data,Status')
+      appointments.forEach(a => {
+        const statusLabel = a.status === 'completed' ? 'Realizado' : a.status === 'cancelled' ? 'Cancelado' : 'Agendado'
+        lines.push(`"${a.clientName}","${a.service ?? '-'}","${fmt.currency(a.value)}","${new Date(a.date).toLocaleDateString('pt-BR')}","${statusLabel}"`)
+      })
+    }
+
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -83,6 +123,11 @@ export default function ReportsPage() {
   }
 
   const client = clients.find(c => c.id === clientId)
+
+  const investido = data?.spend ?? 0
+  const faturado = apptSummary?.completedValue ?? 0
+  const lucro = faturado - investido
+  const roi = investido > 0 ? ((faturado / investido) - 1) * 100 : 0
 
   const rows: { label: string; value: string; desc: string }[] = data ? [
     { label: 'Verba Investida',      value: fmt.currency(data.spend),              desc: 'Total gasto em anúncios no período' },
@@ -161,8 +206,44 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Tabela de métricas */}
+          {/* Resumo Financeiro */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 overflow-hidden mb-4">
+            <div className="px-5 py-3 border-b border-blue-100 dark:border-gray-800 bg-blue-50/50 dark:bg-gray-800/50">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-400 rounded-full" /> Resumo Financeiro
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-5">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-gray-400">Investido</p>
+                <p className="text-lg font-bold text-blue-500">{fmt.currency(investido)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-gray-400">Faturado</p>
+                <p className="text-lg font-bold text-green-500">{fmt.currency(faturado)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-gray-400">Lucro</p>
+                <p className={`text-lg font-bold ${lucro >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-gray-400">ROI</p>
+                <p className={`text-lg font-bold ${roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {roi.toFixed(0)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabela de métricas de anúncios */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 overflow-hidden mb-4">
+            <div className="px-5 py-3 border-b border-blue-100 dark:border-gray-800 bg-blue-50/50 dark:bg-gray-800/50">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-400 rounded-full" /> Métricas de Anúncios
+              </h3>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -183,6 +264,90 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Seção de Agendamentos */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 overflow-hidden mb-4">
+            <div className="px-5 py-3 border-b border-blue-100 dark:border-gray-800 bg-blue-50/50 dark:bg-gray-800/50">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <CalendarCheck size={15} className="text-blue-400" /> Agendamentos
+              </h3>
+            </div>
+
+            {/* Resumo de agendamentos */}
+            {apptSummary && (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 p-5 border-b border-blue-50 dark:border-gray-800">
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Total</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-white">{apptSummary.total}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Valor total</p>
+                  <p className="text-sm font-bold text-gray-800 dark:text-white">{fmt.currency(apptSummary.totalValue)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Realizados</p>
+                  <p className="text-lg font-bold text-green-500">{apptSummary.completed}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Faturado</p>
+                  <p className="text-sm font-bold text-green-500">{fmt.currency(apptSummary.completedValue)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Agendados</p>
+                  <p className="text-lg font-bold text-blue-500">{apptSummary.scheduled}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Cancelados</p>
+                  <p className="text-lg font-bold text-red-400">{apptSummary.cancelled}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Lista detalhada de agendamentos */}
+            {appointments.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-blue-100 dark:border-gray-800">
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase">Cliente</th>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Serviço</th>
+                      <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase">Valor</th>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase">Data</th>
+                      <th className="text-center px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {appointments.map((a, i) => (
+                      <tr key={a.id} className={`border-b border-blue-50 dark:border-gray-800 last:border-0 ${i % 2 === 0 ? '' : 'bg-blue-50/30 dark:bg-gray-800/30'}`}>
+                        <td className="px-5 py-2.5 text-sm font-medium text-gray-900 dark:text-white">{a.clientName}</td>
+                        <td className="px-5 py-2.5 text-sm text-gray-500 hidden sm:table-cell">{a.service ?? '-'}</td>
+                        <td className="px-5 py-2.5 text-sm font-bold text-blue-500 text-right whitespace-nowrap">{fmt.currency(a.value)}</td>
+                        <td className="px-5 py-2.5 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                          {new Date(a.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                        </td>
+                        <td className="px-5 py-2.5 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            a.status === 'completed' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' :
+                            a.status === 'cancelled' ? 'bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400' :
+                            'bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              a.status === 'completed' ? 'bg-green-400' : a.status === 'cancelled' ? 'bg-red-400' : 'bg-blue-400'
+                            }`} />
+                            {a.status === 'completed' ? 'Realizado' : a.status === 'cancelled' ? 'Cancelado' : 'Agendado'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-5 py-6 text-center text-sm text-gray-400">
+                Nenhum agendamento no período
+              </div>
+            )}
           </div>
 
           {/* Botões de exportação */}

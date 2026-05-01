@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [cpf, setCpf] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -34,7 +35,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, cpf: cpf.replace(/\D/g, ''), password }),
+        body: JSON.stringify({ name, email, cpf: cpf.replace(/\D/g, ''), phone: phone.replace(/\D/g, ''), password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erro ao criar conta')
@@ -109,6 +110,24 @@ export default function RegisterPage() {
                 value={cpf}
                 onChange={e => setCpf(formatCPF(e.target.value))}
                 placeholder="000.000.000-00"
+                className="w-full px-4 py-3 rounded-xl border border-blue-200 dark:border-gray-700 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Telefone <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phone}
+                onChange={e => {
+                  const v = e.target.value.replace(/\D/g, '').slice(0, 11)
+                  const formatted = v.length > 6 ? `(${v.slice(0,2)}) ${v.slice(2,7)}-${v.slice(7)}` : v.length > 2 ? `(${v.slice(0,2)}) ${v.slice(2)}` : v
+                  setPhone(formatted)
+                }}
+                placeholder="(00) 00000-0000"
                 className="w-full px-4 py-3 rounded-xl border border-blue-200 dark:border-gray-700 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
               />
             </div>

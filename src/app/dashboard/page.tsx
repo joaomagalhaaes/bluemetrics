@@ -268,11 +268,18 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-              <button onClick={() => setShowApptForm(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
-                <CalendarPlus size={13} />
-                Novo agendamento
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-400 font-medium">{apptSummary?.total ?? 0}/30</span>
+                <button onClick={() => {
+                  if ((apptSummary?.total ?? 0) >= 30) { alert('Limite de 30 agendamentos por mês atingido.'); return }
+                  setShowApptForm(v => !v)
+                }}
+                  disabled={(apptSummary?.total ?? 0) >= 30}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
+                  <CalendarPlus size={13} />
+                  Novo agendamento
+                </button>
+              </div>
             </div>
 
             {/* Resumo de agendamentos */}
@@ -352,8 +359,8 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-1">A secretária pode adicionar aqui quando agendar um cliente</p>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-50 dark:divide-gray-800 max-h-64 overflow-y-auto">
-                {appointments.slice(0, 10).map(a => (
+              <ul className="divide-y divide-gray-50 dark:divide-gray-800 max-h-80 overflow-y-auto">
+                {appointments.slice(0, 30).map(a => (
                   <li key={a.id} className="px-5 py-3 flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
                       a.status === 'completed' ? 'bg-green-400' :

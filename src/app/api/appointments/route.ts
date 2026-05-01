@@ -56,6 +56,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'clientName, value e date são obrigatórios' }, { status: 400 })
   }
 
+  // Limite de 30 agendamentos por mês
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthCount = await prisma.appointment.count({
+    where: { userId: session.userId, date: { gte: startOfMonth } },
+  })
+  if (monthCount >= 30) {
+    return NextResponse.json({ error: 'Limite de 30 agendamentos por mês atingido' }, { status: 429 })
+  }
+
   const appointment = await prisma.appointment.create({
     data: {
       clientName,

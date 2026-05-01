@@ -5,7 +5,7 @@ import { signToken } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, cpf, password } = await req.json()
+    const { name, email, cpf, phone, password } = await req.json()
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Preencha todos os campos' }, { status: 400 })
@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 10)
     const user = await prisma.user.create({
-      data: { name, email, password: hashed, cpf: cpfClean },
+      data: {
+        name, email, password: hashed, cpf: cpfClean,
+        phone: typeof phone === 'string' && phone.replace(/\D/g, '').length >= 10 ? phone.replace(/\D/g, '') : null,
+      },
     })
     const token = await signToken({ userId: user.id, email: user.email })
 
