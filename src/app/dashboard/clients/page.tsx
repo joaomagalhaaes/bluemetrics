@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Key, ChevronDown, ChevronUp, Building2, CheckCircle2, AlertCircle, ExternalLink, Edit2 } from 'lucide-react'
+import { Plus, Trash2, Key, ChevronDown, ChevronUp, Building2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react'
 
 interface Client {
   id: string; name: string; adAccountId: string
-  accessToken: string | null; appId: string | null
-  appSecret: string | null; createdAt: string
+  hasToken: boolean; createdAt: string
 }
 
 export default function ClientsPage() {
@@ -16,6 +15,10 @@ export default function ClientsPage() {
   const [showTokenGuide, setShowTokenGuide] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ name: '', adAccountId: '', accessToken: '', appId: '', appSecret: '' })
+  // Edição de token
+  const [editingToken, setEditingToken] = useState<string | null>(null)
+  const [newToken, setNewToken] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
 
   useEffect(() => { loadClients() }, [])
 
@@ -38,6 +41,20 @@ export default function ClientsPage() {
       setShowForm(false)
       loadClients()
     } finally { setLoading(false) }
+  }
+
+  async function handleUpdateToken(id: string) {
+    setSavingToken(true)
+    try {
+      await fetch('/api/clients', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, accessToken: newToken }),
+      })
+      setEditingToken(null)
+      setNewToken('')
+      loadClients()
+    } finally { setSavingToken(false) }
   }
 
   async function handleDelete(id: string) {
@@ -71,7 +88,6 @@ export default function ClientsPage() {
                 className="w-full px-4 py-3 rounded-xl border border-blue-200 dark:border-gray-700 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
             </div>
 
-            {/* ID da conta com ajuda */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">ID da conta de anúncios <span className="text-red-400">*</span></label>
@@ -88,7 +104,6 @@ export default function ClientsPage() {
               </p>
             </div>
 
-            {/* Token com guia */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Token de Acesso</label>
@@ -98,10 +113,9 @@ export default function ClientsPage() {
                 </button>
               </div>
 
-              {/* Guia do token inline */}
               {showTokenGuide && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-3">
-                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-3">🔑 Como obter seu Token de Acesso:</p>
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-3">Como obter seu Token de Acesso:</p>
                   <ol className="space-y-2">
                     {[
                       { step: '1', text: 'Acesse developers.facebook.com', link: 'https://developers.facebook.com' },
@@ -113,13 +127,10 @@ export default function ClientsPage() {
                     ].map(({ step, text, link }) => (
                       <li key={step} className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
                         <span className="w-4 h-4 bg-blue-400 text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">{step}</span>
-                        <span>{text}{link && <a href={link} target="_blank" rel="noreferrer" className="ml-1 underline">→ abrir</a>}</span>
+                        <span>{text}{link && <a href={link} target="_blank" rel="noreferrer" className="ml-1 underline">abrir</a>}</span>
                       </li>
                     ))}
                   </ol>
-                  <p className="text-xs text-blue-500 dark:text-blue-400 mt-3 bg-white/50 dark:bg-gray-800/50 rounded-lg p-2">
-                    ⚠️ O token temporário dura algumas horas. Vá em Configurações para saber como gerar um permanente.
-                  </p>
                 </div>
               )}
 
@@ -171,7 +182,7 @@ export default function ClientsPage() {
                   <p className="text-xs text-gray-400 mt-0.5 font-mono">ID: {client.adAccountId}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {client.accessToken ? (
+                  {client.hasToken ? (
                     <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">
                       <CheckCircle2 size={11} /> Conectado
                     </span>
@@ -193,15 +204,12 @@ export default function ClientsPage() {
 
               {expandedId === client.id && (
                 <div className="px-4 pb-4 border-t border-blue-50 dark:border-gray-800 pt-3 space-y-3">
-                  {!client.accessToken && (
+                  {!client.hasToken && (
                     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">⚡ Como ativar dados reais</p>
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">Como ativar dados reais</p>
                       <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
                         Seu token de acesso ainda não foi configurado. Sem ele, o BlueMetrics exibe dados de exemplo.
                       </p>
-                      <a href="/dashboard/settings" className="text-xs text-amber-700 dark:text-amber-300 underline font-medium">
-                        Ver guia completo em Configurações →
-                      </a>
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -211,17 +219,34 @@ export default function ClientsPage() {
                     </div>
                     <div className="bg-blue-50/50 dark:bg-gray-800 rounded-xl p-3">
                       <p className="text-gray-400 mb-0.5">Status do token</p>
-                      <p className={`font-semibold ${client.accessToken ? 'text-green-500' : 'text-amber-500'}`}>
-                        {client.accessToken ? '✓ Configurado' : '✗ Pendente'}
+                      <p className={`font-semibold ${client.hasToken ? 'text-green-500' : 'text-amber-500'}`}>
+                        {client.hasToken ? 'Configurado' : 'Pendente'}
                       </p>
                     </div>
                   </div>
-                  {client.accessToken && (
-                    <div className="bg-blue-50/50 dark:bg-gray-800 rounded-xl p-3 text-xs">
-                      <p className="text-gray-400 mb-0.5">Token (parcial)</p>
-                      <p className="font-mono text-gray-500 break-all">{client.accessToken.slice(0, 40)}...</p>
+
+                  {/* Atualizar token */}
+                  {editingToken === client.id ? (
+                    <div className="space-y-2">
+                      <input value={newToken} onChange={e => setNewToken(e.target.value)}
+                        placeholder="Cole o novo token aqui..."
+                        className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleUpdateToken(client.id)} disabled={savingToken || !newToken}
+                          className="px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg">
+                          {savingToken ? 'Salvando...' : 'Salvar token'}
+                        </button>
+                        <button onClick={() => { setEditingToken(null); setNewToken('') }}
+                          className="px-3 py-1.5 text-xs text-gray-500">Cancelar</button>
+                      </div>
                     </div>
+                  ) : (
+                    <button onClick={() => setEditingToken(client.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                      <Key size={12} /> {client.hasToken ? 'Atualizar token' : 'Adicionar token'}
+                    </button>
                   )}
+
                   <p className="text-xs text-gray-400">Cadastrado em {new Date(client.createdAt).toLocaleDateString('pt-BR')}</p>
                 </div>
               )}
