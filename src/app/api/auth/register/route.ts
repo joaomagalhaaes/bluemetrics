@@ -28,12 +28,20 @@ export async function POST(req: NextRequest) {
     }
 
     const hashed = await bcrypt.hash(password, 10)
+    const trialEnd = new Date()
+    trialEnd.setDate(trialEnd.getDate() + 7)
+
     const user = await prisma.user.create({
       data: {
         name, email, password: hashed, cpf: cpfClean,
         phone: typeof phone === 'string' && phone.replace(/\D/g, '').length >= 10 ? phone.replace(/\D/g, '') : null,
       },
     })
+
+    await prisma.subscription.create({
+      data: { userId: user.id, status: 'trial', trialEnd },
+    })
+
     const token = await signToken({ userId: user.id, email: user.email })
 
     const res = NextResponse.json({ ok: true })

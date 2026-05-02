@@ -23,6 +23,7 @@ model User {
   whatsappInstances   WhatsappInstance[]
   leads               Lead[]
   appointments        Appointment[]
+  subscription        Subscription?
 }
 
 model Client {
@@ -82,13 +83,29 @@ model Conversation {
 
 model Appointment {
   id          String   @id @default(cuid())
-  clientName  String        // nome do cliente agendado
-  service     String?       // serviço agendado
-  value       Float         // valor do agendamento em R$
-  date        DateTime      // data/hora do agendamento
+  clientName  String
+  service     String?
+  value       Float
+  date        DateTime
   notes       String?
   status      String   @default("scheduled") // scheduled | completed | cancelled
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status               String    @default("trial") // trial | active | grace | suspended | cancelled
+  plan                 String?   // monthly | annual
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  trialEnd             DateTime?
+  gracePeriodEnd       DateTime?
+  suspendedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
