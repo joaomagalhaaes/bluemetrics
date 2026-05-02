@@ -16,18 +16,28 @@ export async function POST(req: NextRequest) {
 
     if (event !== 'messages.upsert') return NextResponse.json({ ok: true })
 
-    const msg = data?.messages?.[0]
+    // Suporta Evolution API v1 (data.messages[0]) e v2 (data é a mensagem diretamente)
+    const msg = data?.messages?.[0] ?? (data?.key ? data : null)
     if (!msg || msg.key?.fromMe) return NextResponse.json({ ok: true })
 
-    const phone   = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') ?? ''
+    const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') ?? ''
+    if (!phone || phone.includes('@')) return NextResponse.json({ ok: true })
+
     const message = msg.message?.conversation
       ?? msg.message?.extendedTextMessage?.text
+      ?? msg.message?.imageMessage?.caption
+      ?? msg.message?.videoMessage?.caption
       ?? '[mídia]'
-    const timestamp = new Date((msg.messageTimestamp ?? Date.now() / 1000) * 1000)
 
-    // Busca a instância pelo nome
+    // messageTimestamp pode ser number ou objeto protobuf { low, high }
+    const tsRaw = msg.messageTimestamp
+    const tsNum = tsRaw && typeof tsRaw === 'object' ? (tsRaw.low ?? Date.now() / 1000) : (tsRaw ?? Date.now() / 1000)
+    const timestamp = new Date(tsNum * 1000)
+
+    // Busca a instância pelo nome (instance pode ser string ou estar em sender/instanceName)
+    const instName = typeof instance === 'string' ? instance : (body.sender ?? body.instanceName ?? '')
     const whatsappInstance = await prisma.whatsappInstance.findFirst({
-      where: { instanceName: instance },
+      where: { instanceName: instName },
     })
     if (!whatsappInstance) return NextResponse.json({ ok: true })
 
@@ -41,7 +51,7 @@ export async function POST(req: NextRequest) {
       lead = await prisma.lead.create({
         data: {
           phone,
-          name: msg.pushName ?? phone,
+          name: msg.pushName ?? msg.verifiedBizName ?? phone,
           status: 'new',
           adSource: 'WhatsApp',
           userId: whatsappInstance.userId,

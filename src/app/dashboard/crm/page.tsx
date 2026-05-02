@@ -36,13 +36,19 @@ export default function CRMPage() {
   const [filter, setFilter] = useState<LeadStatus | 'all'>('all')
   const [form, setForm] = useState({ name: '', phone: '', adSource: '', adCampaign: '', notes: '' })
   const [loading, setLoading] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
-  useEffect(() => { loadLeads() }, [])
+  useEffect(() => {
+    loadLeads()
+    const interval = setInterval(loadLeads, 12000)
+    return () => clearInterval(interval)
+  }, [])
 
   async function loadLeads() {
     const res = await fetch('/api/crm/leads')
     const data = await res.json()
     setLeads(Array.isArray(data) ? data : [])
+    setLastUpdate(new Date())
   }
 
   async function loadConversations(lead: Lead) {
@@ -51,6 +57,17 @@ export default function CRMPage() {
     const data = await res.json()
     setConversations(data.conversations ?? [])
   }
+
+  // Auto-refresh das conversas do lead aberto
+  useEffect(() => {
+    if (!selected) return
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/crm/conversations?leadId=${selected.id}`)
+      const data = await res.json()
+      setConversations(data.conversations ?? [])
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [selected?.id])
 
   async function addLead(e: React.FormEvent) {
     e.preventDefault()
@@ -116,7 +133,14 @@ export default function CRMPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Users size={20} className="text-blue-400" />
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">CRM & Leads</h1>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">CRM & Leads</h1>
+              {lastUpdate && (
+                <p className="text-[10px] text-gray-400">
+                  Atualizado às {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+              )}
+            </div>
           </div>
           <button onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 px-3 py-2 bg-blue-400 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-400/20">
