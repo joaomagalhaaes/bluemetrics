@@ -22,8 +22,7 @@ export async function POST(req: NextRequest) {
 
   const headers = { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY }
 
-  // Body com ambos os formatos (camelCase v1 e snake_case v2)
-  const body = {
+  const webhookBody = {
     url: webhookUrl,
     webhook_by_events: false,
     webhook_base64: false,
@@ -33,64 +32,49 @@ export async function POST(req: NextRequest) {
     enabled: true,
   }
 
-  // Tenta diferentes endpoints da Evolution API (v1 e v2)
+  // Tenta diferentes endpoints da Evolution API (v1, v2 e variações)
   const endpoints = [
-    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`, method: 'POST' },
-    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`, method: 'PUT' },
-    { url: `${EVOLUTION_URL}/webhook/instance/${instanceName}`, method: 'POST' },
-    { url: `${EVOLUTION_URL}/webhook/instance/${instanceName}`, method: 'PUT' },
+    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`,       method: 'POST' },
+    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`,       method: 'PUT'  },
+    { url: `${EVOLUTION_URL}/webhook/${instanceName}`,           method: 'POST' },
+    { url: `${EVOLUTION_URL}/webhook/${instanceName}`,           method: 'PUT'  },
+    { url: `${EVOLUTION_URL}/webhook/instance/${instanceName}`,  method: 'POST' },
+    { url: `${EVOLUTION_URL}/instance/settings/${instanceName}`, method: 'PUT'  },
   ]
 
-  let lastError = ''
+  const errors: string[] = []
 
   for (const ep of endpoints) {
     try {
-      console.log(`[webhook-set] Tentando ${ep.method} ${ep.url}`)
       const res = await fetch(ep.url, {
         method: ep.method,
         headers,
-        body: JSON.stringify(body),
+        body: JSON.stringify(webhookBody),
       })
 
-      const data = await res.json().catch(() => ({}))
-      console.log(`[webhook-set] ${ep.method} ${ep.url} → ${res.status}`, JSON.stringify(data))
+      const text = await res.text()
+      let data: Record<string, unknown> = {}
+      try { data = JSON.parse(text) } catch { data = { raw: text } }
+
+      console.log(`[webhook-set] ${ep.method} ${ep.url} → ${res.status} | ${text.slice(0, 200)}`)
 
       if (res.ok) {
         return NextResponse.json({ ok: true, webhookUrl, endpoint: ep.url })
       }
 
-      lastError = data.message ?? data.error ?? `Status ${res.status}`
+      errors.push(`${ep.method} ${ep.url} → ${res.status}: ${data.message ?? data.error ?? text.slice(0, 100)}`)
     } catch (e) {
-      console.error(`[webhook-set] ${ep.method} ${ep.url} falhou:`, e)
-      lastError = String(e)
+      const msg = String(e)
+      console.error(`[webhook-set] ${ep.method} ${ep.url} falhou:`, msg)
+      errors.push(`${ep.method} ${ep.url} → ${msg.slice(0, 100)}`)
     }
   }
 
-  // Se nenhum endpoint funcionou, tenta configurar via settings da instância
-  try {
-    console.log(`[webhook-set] Tentando via settings da instância`)
-    const res = await fetch(`${EVOLUTION_URL}/instance/settings/${instanceName}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        webhook_url: webhookUrl,
-        webhook_by_events: false,
-        webhook_base64: false,
-        webhook_events: ['MESSAGES_UPSERT'],
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    console.log(`[webhook-set] settings → ${res.status}`, JSON.stringify(data))
-    if (res.ok) {
-      return NextResponse.json({ ok: true, webhookUrl, endpoint: 'settings' })
-    }
-  } catch (e) {
-    console.error('[webhook-set] settings falhou:', e)
-  }
+  console.error('[webhook-set] Todos os endpoints falharam:', errors)
 
   return NextResponse.json({
     error: `Não foi possível configurar o webhook. Configure manualmente no Evolution API. URL: ${webhookUrl}`,
     webhookUrl,
-    lastError,
+    errors,
   }, { status: 500 })
 }
