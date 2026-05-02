@@ -254,6 +254,136 @@ export default function DashboardPage() {
             <MetricCard title="Taxa de cliques"     value={fmt.percent(metrics.ctr)}             icon={MousePointer} color="orange" subtitle="CTR" />
           </div>
 
+          {/* ═══ FUNIL DE CONVERSÃO ═══ */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 mb-5 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+              <h2 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <Activity size={16} className="text-blue-400" />
+                Funil de conversão
+              </h2>
+              <p className="text-[10px] text-gray-400 mt-0.5">Do anúncio até o faturamento</p>
+            </div>
+
+            {/* Funil visual */}
+            <div className="px-5 py-5">
+              {(() => {
+                const alcance = metrics.reach
+                const cliques = metrics.clicks
+                const conversas = metrics.conversationsStarted ?? 0
+                const agendamentos = apptSummary?.total ?? 0
+                const realizados = apptSummary?.completed ?? 0
+                const faturadoVal = apptSummary?.completedValue ?? 0
+
+                const steps = [
+                  { label: 'Alcance', value: alcance, fmt: fmt.number(alcance), color: 'bg-blue-400', lightBg: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600 dark:text-blue-400' },
+                  { label: 'Cliques', value: cliques, fmt: fmt.number(cliques), color: 'bg-indigo-400', lightBg: 'bg-indigo-50 dark:bg-indigo-900/20', textColor: 'text-indigo-600 dark:text-indigo-400' },
+                  { label: 'Conversas', value: conversas, fmt: fmt.number(conversas), color: 'bg-violet-400', lightBg: 'bg-violet-50 dark:bg-violet-900/20', textColor: 'text-violet-600 dark:text-violet-400' },
+                  { label: 'Agendamentos', value: agendamentos, fmt: fmt.number(agendamentos), color: 'bg-amber-400', lightBg: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-600 dark:text-amber-400' },
+                  { label: 'Realizados', value: realizados, fmt: fmt.number(realizados), color: 'bg-green-500', lightBg: 'bg-green-50 dark:bg-green-900/20', textColor: 'text-green-600 dark:text-green-400' },
+                ]
+
+                const maxVal = Math.max(...steps.map(s => s.value), 1)
+
+                return (
+                  <div className="space-y-2.5">
+                    {steps.map((step, i) => {
+                      const widthPct = Math.max((step.value / maxVal) * 100, 8)
+                      const prevValue = i > 0 ? steps[i - 1].value : 0
+                      const convRate = prevValue > 0 ? ((step.value / prevValue) * 100).toFixed(1) : null
+
+                      return (
+                        <div key={step.label}>
+                          {/* Taxa entre etapas */}
+                          {convRate && (
+                            <div className="flex items-center gap-2 mb-1 ml-2">
+                              <div className="w-px h-3 bg-gray-200 dark:bg-gray-700" />
+                              <span className="text-[10px] text-gray-400 font-medium">
+                                {convRate}% converteram
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <div className="w-24 text-right shrink-0">
+                              <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{step.label}</p>
+                            </div>
+                            <div className="flex-1 relative">
+                              <div className="h-9 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                                <div
+                                  className={`h-full ${step.color} rounded-lg flex items-center transition-all duration-700`}
+                                  style={{ width: `${widthPct}%` }}
+                                >
+                                  <span className="text-white text-xs font-bold ml-3 whitespace-nowrap drop-shadow-sm">
+                                    {step.fmt}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Valor por agendamento + faturamento */}
+            {apptSummary && apptSummary.total > 0 && (
+              <div className="px-5 pb-4">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Custo por agendamento</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {apptSummary.total > 0 ? fmt.currency(investido / apptSummary.total) : '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Ticket médio</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {apptSummary.completed > 0 ? fmt.currency(apptSummary.completedValue / apptSummary.completed) : '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Total faturado</p>
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt.currency(faturado)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Lucro líquido</p>
+                      <p className={`text-lg font-bold ${lucro >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                        {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Detalhamento por agendamento realizado */}
+                  {apptSummary.completed > 0 && (
+                    <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
+                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400 mb-2">Agendamentos realizados</p>
+                      <div className="space-y-1.5">
+                        {appointments.filter(a => a.status === 'completed').slice(0, 8).map(a => (
+                          <div key={a.id} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                              <span className="text-gray-700 dark:text-gray-300 truncate">{a.clientName}</span>
+                              {a.service && <span className="text-gray-400 truncate hidden sm:inline">· {a.service}</span>}
+                            </div>
+                            <span className="font-bold text-green-600 dark:text-green-400 shrink-0 ml-2">{fmt.currency(a.value)}</span>
+                          </div>
+                        ))}
+                        {appointments.filter(a => a.status === 'completed').length > 8 && (
+                          <p className="text-[10px] text-gray-400 text-center mt-1">
+                            +{appointments.filter(a => a.status === 'completed').length - 8} realizados
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* ═══ AGENDAMENTOS ═══ */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 mb-5 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
