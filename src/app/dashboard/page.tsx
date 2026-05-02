@@ -62,10 +62,12 @@ export default function DashboardPage() {
       setClients(data)
       if (data.length > 0) setSelectedClientId(data[0].id)
     })
-    loadAppointments()
   }, [])
 
-  useEffect(() => { if (selectedClientId) loadMetrics() }, [selectedClientId, period])
+  useEffect(() => {
+    if (selectedClientId) loadMetrics()
+    loadAppointments()
+  }, [selectedClientId, period])
 
   async function loadMetrics() {
     setLoading(true)
@@ -79,7 +81,7 @@ export default function DashboardPage() {
   }
 
   async function loadAppointments() {
-    const res = await fetch('/api/appointments?period=month')
+    const res = await fetch(`/api/appointments?period=${period}`)
     if (res.ok) {
       const data = await res.json()
       setAppointments(data.appointments)
@@ -90,15 +92,23 @@ export default function DashboardPage() {
   async function addAppointment(e: React.FormEvent) {
     e.preventDefault()
     setApptLoading(true)
-    await fetch('/api/appointments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(apptForm),
-    })
-    setApptForm({ clientName: '', service: '', value: '', date: '', notes: '' })
-    setShowApptForm(false)
-    await loadAppointments()
-    setApptLoading(false)
+    try {
+      const res = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apptForm),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Erro ao criar agendamento')
+        return
+      }
+      setApptForm({ clientName: '', service: '', value: '', date: '', notes: '' })
+      setShowApptForm(false)
+      await loadAppointments()
+    } finally {
+      setApptLoading(false)
+    }
   }
 
   async function completeAppointment(id: string) {
@@ -123,6 +133,14 @@ export default function DashboardPage() {
     if (!confirm('Remover agendamento?')) return
     await fetch(`/api/appointments?id=${id}`, { method: 'DELETE' })
     await loadAppointments()
+  }
+
+  const PERIOD_LABELS: Record<string, string> = {
+    today: 'hoje',
+    yesterday: 'ontem',
+    last_7d: 'últimos 7 dias',
+    last_30d: 'últimos 30 dias',
+    last_month: 'mês passado',
   }
 
   const fmt = {
@@ -390,7 +408,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <Calendar size={18} className="text-blue-400" />
                 <div>
-                  <h2 className="text-sm font-bold text-gray-800 dark:text-white">Agendamentos do mês</h2>
+                  <h2 className="text-sm font-bold text-gray-800 dark:text-white">Agendamentos — {PERIOD_LABELS[period] ?? 'período selecionado'}</h2>
                   {apptSummary && (
                     <p className="text-[10px] text-gray-400">
                       {apptSummary.total} agendamento{apptSummary.total !== 1 ? 's' : ''} · {fmt.currency(apptSummary.totalValue)} total

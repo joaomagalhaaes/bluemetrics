@@ -10,16 +10,33 @@ export async function GET(req: NextRequest) {
     const period = req.nextUrl.searchParams.get('period') // 'week' | 'month' | 'all'
 
     let dateFilter = {}
-    if (period === 'week') {
-      const now = new Date()
-      const startOfWeek = new Date(now)
-      startOfWeek.setDate(now.getDate() - now.getDay())
-      startOfWeek.setHours(0, 0, 0, 0)
-      dateFilter = { date: { gte: startOfWeek } }
+    const now = new Date()
+    if (period === 'today') {
+      const start = new Date(now); start.setHours(0, 0, 0, 0)
+      const end = new Date(now); end.setHours(23, 59, 59, 999)
+      dateFilter = { date: { gte: start, lte: end } }
+    } else if (period === 'yesterday') {
+      const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0)
+      const end = new Date(now); end.setDate(end.getDate() - 1); end.setHours(23, 59, 59, 999)
+      dateFilter = { date: { gte: start, lte: end } }
+    } else if (period === 'last_7d') {
+      const start = new Date(now); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0)
+      dateFilter = { date: { gte: start } }
+    } else if (period === 'last_30d') {
+      const start = new Date(now); start.setDate(start.getDate() - 30); start.setHours(0, 0, 0, 0)
+      dateFilter = { date: { gte: start } }
+    } else if (period === 'last_month') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+      dateFilter = { date: { gte: start, lte: end } }
+    } else if (period === 'week') {
+      const start = new Date(now)
+      start.setDate(now.getDate() - now.getDay())
+      start.setHours(0, 0, 0, 0)
+      dateFilter = { date: { gte: start } }
     } else if (period === 'month') {
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      dateFilter = { date: { gte: startOfMonth } }
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      dateFilter = { date: { gte: start } }
     }
 
     const appointments = await prisma.appointment.findMany({
