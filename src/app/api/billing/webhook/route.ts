@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { addBusinessDays } from '@/lib/subscription'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyStripeInvoice = any
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -52,14 +55,12 @@ export async function POST(req: NextRequest) {
       }
 
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice
-        const subscriptionId = typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : invoice.subscription?.id
+        const invoice = event.data.object as AnyStripeInvoice
+        const subscriptionId = invoice.subscription ?? invoice.parent?.subscription_details?.subscription ?? null
         if (!subscriptionId) break
 
         const sub = await prisma.subscription.findFirst({
-          where: { stripeSubscriptionId: subscriptionId },
+          where: { stripeSubscriptionId: String(subscriptionId) },
         })
         if (!sub) break
 
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
           where: { id: sub.id },
           data: {
             status: 'active',
-            currentPeriodEnd: new Date(invoice.period_end * 1000),
+            currentPeriodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : null,
             gracePeriodEnd: null,
             suspendedAt: null,
           },
@@ -77,14 +78,12 @@ export async function POST(req: NextRequest) {
       }
 
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice
-        const subscriptionId = typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : invoice.subscription?.id
+        const invoice = event.data.object as AnyStripeInvoice
+        const subscriptionId = invoice.subscription ?? invoice.parent?.subscription_details?.subscription ?? null
         if (!subscriptionId) break
 
         const sub = await prisma.subscription.findFirst({
-          where: { stripeSubscriptionId: subscriptionId },
+          where: { stripeSubscriptionId: String(subscriptionId) },
         })
         if (!sub) break
 
@@ -99,7 +98,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'customer.subscription.updated': {
-        const stripeSub = event.data.object as Stripe.Subscription
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const stripeSub = event.data.object as any
         const sub = await prisma.subscription.findFirst({
           where: { stripeSubscriptionId: stripeSub.id },
         })
@@ -115,7 +115,9 @@ export async function POST(req: NextRequest) {
           where: { id: sub.id },
           data: {
             status,
-            currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+            currentPeriodEnd: stripeSub.current_period_end
+              ? new Date(stripeSub.current_period_end * 1000)
+              : null,
           },
         })
         break
