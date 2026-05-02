@@ -1,9 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageCircle, MessageSquare, Users, DollarSign, RefreshCw, TrendingUp } from 'lucide-react'
+import {
+  MessageCircle, MessageSquare, Users, DollarSign, RefreshCw,
+  TrendingUp, TrendingDown, Calendar, CalendarCheck
+} from 'lucide-react'
 import MetricCard from '@/components/MetricCard'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Cell, Legend, ComposedChart, Line
+} from 'recharts'
 import { useTheme } from 'next-themes'
 
 interface Data {
@@ -15,6 +21,11 @@ interface Data {
   reach: number
 }
 interface Monthly { month: string; conversationsStarted: number; leads: number; spend: number }
+interface AppointmentSummary {
+  total: number; totalValue: number
+  completed: number; completedValue: number
+  scheduled: number; cancelled: number
+}
 
 export default function MessagesPage() {
   const { theme } = useTheme()
@@ -25,15 +36,25 @@ export default function MessagesPage() {
   const [clientId, setClientId] = useState('')
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [period, setPeriod] = useState('last_30d')
+  const [apptSummary, setApptSummary] = useState<AppointmentSummary | null>(null)
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(c => {
       setClients(c)
       if (c.length > 0) setClientId(c[0].id)
     })
+    loadAppointments()
   }, [])
 
   useEffect(() => { if (clientId) load() }, [clientId, period])
+
+  async function loadAppointments() {
+    const res = await fetch('/api/appointments?period=month')
+    if (res.ok) {
+      const d = await res.json()
+      setApptSummary(d.summary)
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -65,6 +86,18 @@ export default function MessagesPage() {
 
   const convRate = data && data.reach > 0 ? ((data.conversationsStarted / data.reach) * 100).toFixed(2) : '0.00'
 
+  // Financeiro
+  const investido = data?.spend ?? 0
+  const faturado = apptSummary?.completedValue ?? 0
+  const lucro = faturado - investido
+  const roi = investido > 0 ? ((faturado / investido) - 1) * 100 : 0
+
+  // Dados do gráfico combinado (conversas + agendamentos simulados por mês)
+  const chartData = monthly.map(m => ({
+    ...m,
+    agendamentos: 0, // Dados mensais reais viriam de uma API separada, por enquanto mantemos conversas
+  }))
+
   return (
     <div className="max-w-4xl mx-auto px-4 pt-6 pb-6">
       {/* Header */}
@@ -90,7 +123,7 @@ export default function MessagesPage() {
             <option value="this_month">Este mês</option>
             <option value="last_month">Mês passado</option>
           </select>
-          <button onClick={load} disabled={loading} className="p-2 bg-blue-400 text-white rounded-xl">
+          <button onClick={() => { load(); loadAppointments() }} disabled={loading} className="p-2 bg-blue-400 text-white rounded-xl">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -102,14 +135,14 @@ export default function MessagesPage() {
         <>
           {/* Explicação */}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 mb-5">
-            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">💬 O que são "conversas iniciadas"?</p>
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">O que são "conversas iniciadas"?</p>
             <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
               É quando alguém clicou no seu anúncio e <strong>enviou uma mensagem</strong> para o seu WhatsApp ou Messenger.
               Diferente de "conversões", isso mede contatos diretos — a venda acontece fora da plataforma, no seu atendimento.
             </p>
           </div>
 
-          {/* Cards */}
+          {/* Cards de conversas */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             <MetricCard title="Conversas iniciadas" value={fmt.number(data.conversationsStarted)} icon={MessageCircle} color="blue" subtitle="WhatsApp + Messenger" />
             <MetricCard title="Custo por conversa" value={fmt.currency(data.costPerConversation)} icon={DollarSign} color="green" subtitle="Quanto custou cada contato" />
@@ -131,24 +164,152 @@ export default function MessagesPage() {
             </div>
           </div>
 
-          {/* Gráfico de barras mensais */}
+          {/* ═══ RESUMO FINANCEIRO ═══ */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-5 mb-5 text-white shadow-lg shadow-blue-500/20">
+            <h3 className="text-sm font-semibold text-blue-200 mb-3 flex items-center gap-2">
+              <DollarSign size={16} /> Resumo Financeiro do Mês
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Investido em ads</p>
+                <p className="text-xl font-bold">{fmt.currency(investido)}</p>
+              </div>
+              <div>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Faturado (agendamentos)</p>
+                <p className="text-xl font-bold">{fmt.currency(faturado)}</p>
+              </div>
+              <div>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Lucro</p>
+                <p className={`text-xl font-bold flex items-center gap-1 ${lucro >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                  {lucro >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                  {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
+                </p>
+              </div>
+              <div>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">ROI</p>
+                <p className={`text-xl font-bold ${roi >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                  {roi.toFixed(0)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══ AGENDAMENTOS DO MÊS ═══ */}
+          {apptSummary && (
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 mb-5 overflow-hidden">
+              <div className="px-5 py-3 border-b border-blue-100 dark:border-gray-800 bg-blue-50/50 dark:bg-gray-800/50">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <CalendarCheck size={16} className="text-blue-400" /> Agendamentos do Mês
+                </h3>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 p-5">
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Total</p>
+                  <p className="text-2xl font-bold text-gray-800 dark:text-white">{apptSummary.total}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Agendados</p>
+                  <p className="text-2xl font-bold text-blue-500">{apptSummary.scheduled}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Realizados</p>
+                  <p className="text-2xl font-bold text-green-500">{apptSummary.completed}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Cancelados</p>
+                  <p className="text-2xl font-bold text-red-400">{apptSummary.cancelled}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Valor total</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-white">{fmt.currency(apptSummary.totalValue)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400">Faturado</p>
+                  <p className="text-lg font-bold text-green-500">{fmt.currency(apptSummary.completedValue)}</p>
+                </div>
+              </div>
+
+              {/* Funil visual: Conversas → Agendamentos → Realizados */}
+              <div className="px-5 pb-5">
+                <div className="bg-blue-50 dark:bg-gray-800 rounded-xl p-4">
+                  <p className="text-[10px] uppercase font-semibold text-gray-400 mb-3">Funil de conversão</p>
+                  <div className="flex items-center gap-2">
+                    {/* Conversas */}
+                    <div className="flex-1 text-center">
+                      <div className="bg-blue-400 text-white rounded-xl py-3">
+                        <p className="text-xl font-bold">{fmt.number(data.conversationsStarted)}</p>
+                        <p className="text-[10px] text-blue-100">Conversas</p>
+                      </div>
+                    </div>
+                    <div className="text-gray-300 dark:text-gray-600 text-lg font-bold">→</div>
+                    {/* Agendamentos */}
+                    <div className="flex-1 text-center">
+                      <div className="bg-amber-400 text-white rounded-xl py-3">
+                        <p className="text-xl font-bold">{apptSummary.total}</p>
+                        <p className="text-[10px] text-amber-100">Agendamentos</p>
+                      </div>
+                    </div>
+                    <div className="text-gray-300 dark:text-gray-600 text-lg font-bold">→</div>
+                    {/* Realizados */}
+                    <div className="flex-1 text-center">
+                      <div className="bg-green-500 text-white rounded-xl py-3">
+                        <p className="text-xl font-bold">{apptSummary.completed}</p>
+                        <p className="text-[10px] text-green-100">Realizados</p>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Taxas */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 text-center">
+                      <p className="text-[10px] text-gray-400">
+                        {data.conversationsStarted > 0 ? ((apptSummary.total / data.conversationsStarted) * 100).toFixed(1) : 0}% agendaram
+                      </p>
+                    </div>
+                    <div className="flex-1" />
+                    <div className="flex-1 text-center">
+                      <p className="text-[10px] text-gray-400">
+                        {apptSummary.total > 0 ? ((apptSummary.completed / apptSummary.total) * 100).toFixed(1) : 0}% compareceram
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Gráfico de barras mensais - conversas + investimento */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Conversas por mês</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Evolução de conversas iniciadas nos últimos 6 meses</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={monthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Evolução mensal</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Conversas iniciadas e investimento nos últimos 6 meses</p>
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={grid} />
                 <XAxis dataKey="month" tick={{ fill: text, fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: text, fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
-                <Tooltip contentStyle={{ backgroundColor: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 12 }}
+                <YAxis yAxisId="left" tick={{ fill: text, fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: text, fontSize: 11 }} axisLine={false} tickLine={false} width={60}
+                  tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} />
+                <Tooltip contentStyle={{ backgroundColor: tipBg, border: `1px solid ${tipBorder}`, borderRadius: 12, fontSize: 12 }}
                   labelStyle={{ color: isDark ? '#fff' : '#111', fontWeight: 600 }}
-                  formatter={(v: number) => [v.toLocaleString('pt-BR'), 'Conversas']} />
-                <Bar dataKey="conversationsStarted" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                  {monthly.map((_, i) => (
-                    <Cell key={i} fill={i === monthly.length - 1 ? '#60a5fa' : isDark ? '#1e3a5f' : '#bfdbfe'} />
+                  formatter={(v: number, name: string) => {
+                    if (name === 'spend') return [`R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Investido']
+                    if (name === 'conversationsStarted') return [v.toLocaleString('pt-BR'), 'Conversas']
+                    if (name === 'leads') return [v.toLocaleString('pt-BR'), 'Leads']
+                    return [v, name]
+                  }} />
+                <Legend formatter={(value: string) => {
+                  if (value === 'conversationsStarted') return 'Conversas'
+                  if (value === 'spend') return 'Investido (R$)'
+                  if (value === 'leads') return 'Leads'
+                  return value
+                }} />
+                <Bar yAxisId="left" dataKey="conversationsStarted" radius={[6, 6, 0, 0]} maxBarSize={35}>
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill={i === chartData.length - 1 ? '#60a5fa' : isDark ? '#1e3a5f' : '#bfdbfe'} />
                   ))}
                 </Bar>
-              </BarChart>
+                <Bar yAxisId="left" dataKey="leads" radius={[6, 6, 0, 0]} maxBarSize={35} fill={isDark ? '#065f46' : '#6ee7b7'} />
+                <Line yAxisId="right" type="monotone" dataKey="spend" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </>
