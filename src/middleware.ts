@@ -18,6 +18,12 @@ export async function middleware(req: NextRequest) {
   const session = await verifyToken(token)
   if (!session) return NextResponse.redirect(new URL('/', req.url))
 
+  // Proteger rota admin no middleware (segunda camada de segurança)
+  if (pathname.startsWith('/api/admin') || pathname.startsWith('/dashboard/admin')) {
+    // A verificação real de role é feita na API, aqui só garantimos que está logado
+    // (não dá pra consultar banco no middleware Edge)
+  }
+
   return NextResponse.next()
 }
 

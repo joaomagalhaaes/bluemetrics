@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'E-mail/CPF ou senha incorretos' }, { status: 401 })
     }
 
+    if (user.suspended) {
+      return NextResponse.json({ error: 'Sua conta foi suspensa. Entre em contato com o administrador.' }, { status: 403 })
+    }
+
     const token = await signToken({ userId: user.id, email: user.email })
     const res = NextResponse.json({ ok: true, onboardingCompleted: user.onboardingCompleted })
     res.cookies.set('token', token, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 * 7 })

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import {
   BarChart2, LogOut, LayoutDashboard,
   MessageCircle, Zap, Video, FileText,
-  Settings, TrendingUp, Users, Smartphone, LayoutGrid
+  Settings, TrendingUp, Users, Smartphone, LayoutGrid, Shield
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { Avatar } from './ProfileMenu'
@@ -47,7 +47,7 @@ const navGroups = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [user, setUser] = useState<{ name: string; email: string; avatarUrl?: string } | null>(null)
+  const [user, setUser] = useState<{ name: string; email: string; avatarUrl?: string; role?: string } | null>(null)
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -125,6 +125,26 @@ export default function Sidebar() {
             </div>
           </div>
         ))}
+
+        {/* Admin — só aparece para admin */}
+        {user?.role === 'admin' && (
+          <div>
+            <p className="text-[10px] font-semibold text-red-400 dark:text-red-500 uppercase tracking-widest px-3 mb-1">
+              Administrador
+            </p>
+            <div className="space-y-0.5">
+              <Link href="/dashboard/admin"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  pathname === '/dashboard/admin'
+                    ? 'bg-red-500 text-white shadow-md shadow-red-400/20'
+                    : 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                }`}>
+                <Shield size={17} />
+                Painel Admin
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Rodapé */}
