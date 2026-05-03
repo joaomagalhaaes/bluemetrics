@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { stripe, PLANS, PlanKey } from '@/lib/stripe'
+import { getStripe, PLANS, PlanKey } from '@/lib/stripe'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bluemetrics-phi.vercel.app'
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     const sub = await prisma.subscription.findUnique({ where: { userId: session.userId } })
 
-    const checkoutSession = await stripe.checkout.sessions.create({
+    const checkoutSession = await getStripe().checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       customer: sub?.stripeCustomerId ?? undefined,

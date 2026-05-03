@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bluemetrics-phi.vercel.app'
 
@@ -15,7 +15,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Nenhuma assinatura ativa encontrada' }, { status: 400 })
     }
 
-    const portalSession = await stripe.billingPortal.sessions.create({
+    const portalSession = await getStripe().billingPortal.sessions.create({
       customer: sub.stripeCustomerId,
       return_url: `${APP_URL}/dashboard/billing`,
     })

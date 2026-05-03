@@ -1,9 +1,18 @@
 import Stripe from 'stripe'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // @ts-expect-error — Stripe SDK version may not match typed API version
-  apiVersion: '2024-06-20',
-})
+// Lazy init: evita crash no build quando STRIPE_SECRET_KEY não está definida
+let _stripe: Stripe | null = null
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY
+    if (!key) throw new Error('STRIPE_SECRET_KEY não configurada')
+    _stripe = new Stripe(key, {
+      // @ts-expect-error — Stripe SDK version may not match typed API version
+      apiVersion: '2024-06-20',
+    })
+  }
+  return _stripe
+}
 
 export const PLANS = {
   monthly: {
