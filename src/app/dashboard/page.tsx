@@ -10,7 +10,7 @@ import MetricCard from '@/components/MetricCard'
 import SpendChart from '@/components/SpendChart'
 import MonthlyComparisonChart from '@/components/MonthlyComparisonChart'
 
-interface Client { id: string; name: string; adAccountId: string; accessToken: string | null }
+interface Client { id: string; name: string; adAccountId: string; hasToken: boolean }
 interface Metrics {
   spend: number; impressions: number; clicks: number
   cpc: number; cpm: number; ctr: number
@@ -74,9 +74,28 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`/api/meta/metrics?clientId=${selectedClientId}&datePreset=${period}`)
       const data = await res.json()
-      setMetrics(data.metrics)
-      setMonthly(data.monthly)
-      setIsMock(data.mock)
+      if (res.ok && data.metrics) {
+        setMetrics(data.metrics)
+        setMonthly(data.monthly ?? [])
+        setIsMock(data.mock ?? false)
+      } else {
+        // Fallback para métricas zeradas quando a API falha
+        setMetrics({
+          spend: 0, impressions: 0, clicks: 0, cpc: 0, cpm: 0, ctr: 0,
+          reach: 0, frequency: 0, conversions: 0, roas: 0,
+          conversationsStarted: 0, costPerConversation: 0, leads: 0, costPerLead: 0,
+        })
+        setMonthly([])
+        setIsMock(true)
+      }
+    } catch {
+      setMetrics({
+        spend: 0, impressions: 0, clicks: 0, cpc: 0, cpm: 0, ctr: 0,
+        reach: 0, frequency: 0, conversions: 0, roas: 0,
+        conversationsStarted: 0, costPerConversation: 0, leads: 0, costPerLead: 0,
+      })
+      setMonthly([])
+      setIsMock(true)
     } finally { setLoading(false) }
   }
 
