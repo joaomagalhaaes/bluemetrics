@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart2, Check, Loader2, ShieldCheck, Zap, Clock } from 'lucide-react'
 
@@ -27,7 +27,15 @@ const REASONS: Record<string, { title: string; desc: string; color: string }> = 
   },
 }
 
-export default function BillingPage() {
+export default function BillingPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-blue-400" size={32} /></div>}>
+      <BillingPage />
+    </Suspense>
+  )
+}
+
+function BillingPage() {
   const router = useRouter()
   const params = useSearchParams()
   const reason = params.get('reason') ?? 'no_subscription'
