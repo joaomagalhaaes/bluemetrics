@@ -21,7 +21,7 @@ interface Metrics {
 interface MonthlyData {
   month: string; spend: number; clicks: number
   impressions: number; conversions: number; roas: number
-  leads: number
+  leads: number; conversationsStarted?: number
   appointments?: number; revenue?: number
 }
 interface Appointment {

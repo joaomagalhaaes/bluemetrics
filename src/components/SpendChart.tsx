@@ -11,6 +11,7 @@ interface ChartData {
   spend: number
   clicks: number
   leads: number
+  conversationsStarted?: number
   appointments?: number
   revenue?: number
 }
@@ -30,15 +31,14 @@ export default function SpendChart({ data }: SpendChartProps) {
 
   const nameMap: Record<string, string> = {
     spend: 'Verba investida',
-    leads: 'Leads',
-    appointments: 'Agendamentos',
+    conversationsStarted: 'Conversas iniciadas',
     revenue: 'Faturamento',
   }
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 p-6 shadow-sm">
       <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Evolução Mensal</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Investimento, leads e faturamento nos últimos 6 meses</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Investimento, conversas iniciadas e faturamento nos últimos 6 meses</p>
 
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -47,7 +47,7 @@ export default function SpendChart({ data }: SpendChartProps) {
               <stop offset="5%"  stopColor="#60a5fa" stopOpacity={0.3} />
               <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
             </linearGradient>
-            <linearGradient id="gradLeads" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="gradConversations" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#a78bfa" stopOpacity={0.3} />
               <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
             </linearGradient>
@@ -67,13 +67,13 @@ export default function SpendChart({ data }: SpendChartProps) {
               ['spend', 'revenue'].includes(name)
                 ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                 : value.toLocaleString('pt-BR'),
-              nameMap[name] ?? name,
+              nameMap[name as string] ?? name,
             ]}
           />
           <Legend formatter={v => nameMap[v] ?? v} wrapperStyle={{ fontSize: 12 }} />
-          <Area type="monotone" dataKey="spend"   stroke="#60a5fa" strokeWidth={2} fill="url(#gradSpend)"   dot={{ fill: '#60a5fa', r: 3 }} activeDot={{ r: 5 }} />
-          <Area type="monotone" dataKey="leads"   stroke="#a78bfa" strokeWidth={2} fill="url(#gradLeads)"   dot={{ fill: '#a78bfa', r: 3 }} activeDot={{ r: 5 }} />
-          <Area type="monotone" dataKey="revenue" stroke="#34d399" strokeWidth={2} fill="url(#gradRevenue)" dot={{ fill: '#34d399', r: 3 }} activeDot={{ r: 5 }} />
+          <Area type="monotone" dataKey="spend"                stroke="#60a5fa" strokeWidth={2} fill="url(#gradSpend)"         dot={{ fill: '#60a5fa', r: 3 }} activeDot={{ r: 5 }} />
+          <Area type="monotone" dataKey="conversationsStarted" stroke="#a78bfa" strokeWidth={2} fill="url(#gradConversations)" dot={{ fill: '#a78bfa', r: 3 }} activeDot={{ r: 5 }} />
+          <Area type="monotone" dataKey="revenue"              stroke="#34d399" strokeWidth={2} fill="url(#gradRevenue)"        dot={{ fill: '#34d399', r: 3 }} activeDot={{ r: 5 }} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

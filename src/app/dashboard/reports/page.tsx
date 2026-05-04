@@ -61,7 +61,12 @@ export default function ReportsPage() {
   function downloadCSV() {
     if (!data) return
     const client = clients.find(c => c.id === clientId)
+    const dateRange = getPeriodDateRange(period)
     const lines = [
+      `BlueMetrics - Relatório de Anúncios - ${client?.name ?? 'conta'}`,
+      `Período: ${periodLabels[period]} — ${dateRange}`,
+      `Gerado em: ${new Date().toLocaleDateString('pt-BR')}`,
+      '',
       'Métrica,Valor',
       `Verba Investida,"${fmt.currency(data.spend)}"`,
       `Impressões,"${fmt.number(data.impressions)}"`,
@@ -120,6 +125,54 @@ export default function ReportsPage() {
   const periodLabels: Record<string, string> = {
     today: 'Hoje', yesterday: 'Ontem', last_7d: 'Últimos 7 dias',
     last_30d: 'Últimos 30 dias', this_month: 'Este mês', last_month: 'Mês passado'
+  }
+
+  // Calcula as datas de referência do período selecionado
+  function getPeriodDateRange(p: string): string {
+    const now = new Date()
+    let start: Date
+    let end: Date
+
+    switch (p) {
+      case 'today':
+        start = end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        break
+      case 'yesterday': {
+        const d = new Date(now)
+        d.setDate(d.getDate() - 1)
+        start = end = d
+        break
+      }
+      case 'last_7d': {
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        start = new Date(end)
+        start.setDate(start.getDate() - 6)
+        break
+      }
+      case 'last_30d': {
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        start = new Date(end)
+        start.setDate(start.getDate() - 29)
+        break
+      }
+      case 'this_month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1)
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        break
+      case 'last_month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        end = new Date(now.getFullYear(), now.getMonth(), 0) // último dia do mês anterior
+        break
+      default:
+        return ''
+    }
+
+    const fmtDate = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+    if (start.getTime() === end.getTime()) {
+      return `Referente a ${fmtDate(start)}`
+    }
+    return `Referente a ${fmtDate(start)} a ${fmtDate(end)}`
   }
 
   const client = clients.find(c => c.id === clientId)
@@ -201,7 +254,8 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-1 text-blue-100 text-xs">
                   <Calendar size={12} /> {periodLabels[period]}
                 </div>
-                <p className="text-blue-100 text-xs mt-1">{new Date().toLocaleDateString('pt-BR')}</p>
+                <p className="text-white text-xs font-medium mt-1">{getPeriodDateRange(period)}</p>
+                <p className="text-blue-200 text-[10px] mt-0.5">Gerado em {new Date().toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
           </div>
