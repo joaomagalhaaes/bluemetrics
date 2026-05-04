@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
 import DashboardHeader from '@/components/DashboardHeader'
 import SubscriptionBanner from '@/components/SubscriptionBanner'
+import SatisfactionPopup from '@/components/SatisfactionPopup'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession()
@@ -26,6 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const banner = result.banner
   const daysLeft = 'daysLeft' in result ? (result.daysLeft ?? 0) : 0
+  const isTrial = result.allowed && result.status === 'trial'
 
   return (
     <div className="flex min-h-screen bg-blue-50/30 dark:bg-gray-950">
@@ -44,6 +46,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
 
       <BottomNav />
+
+      {isTrial && <SatisfactionPopup />}
     </div>
   )
 }

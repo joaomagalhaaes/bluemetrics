@@ -17,6 +17,7 @@ model User {
   avatarUrl           String?
   role                String        @default("user")     // user | admin
   suspended           Boolean       @default(false)
+  adminApproved       Boolean       @default(false)      // admin pode liberar acesso manualmente
   onboardingCompleted Boolean       @default(false)
   createdAt           DateTime      @default(now())
   clients             Client[]

@@ -22,6 +22,10 @@ export type SubscriptionCheck =
 export async function checkSubscription(userId: string, role: string): Promise<SubscriptionCheck> {
   if (role === 'admin') return { allowed: true, status: 'admin', banner: null }
 
+  // Verificar se o admin liberou acesso manualmente
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { adminApproved: true } })
+  if (user?.adminApproved) return { allowed: true, status: 'admin_approved', banner: null }
+
   const sub = await prisma.subscription.findUnique({ where: { userId } })
   if (!sub) return { allowed: false, reason: 'no_subscription' }
 
