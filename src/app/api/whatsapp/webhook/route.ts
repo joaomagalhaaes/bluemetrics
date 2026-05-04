@@ -4,11 +4,13 @@ import { prisma } from '@/lib/prisma'
 // Webhook recebido da Evolution API quando chega mensagem no WhatsApp
 export async function POST(req: NextRequest) {
   try {
-    // Validação básica do webhook (verifica apikey se configurada)
+    // Validação do webhook — se EVOLUTION_API_KEY está configurada, exige a key correta
     const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY
-    const apiKey = req.headers.get('apikey')
-    if (EVOLUTION_KEY && apiKey && apiKey !== EVOLUTION_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (EVOLUTION_KEY) {
+      const apiKey = req.headers.get('apikey')
+      if (!apiKey || apiKey !== EVOLUTION_KEY) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     const body = await req.json()

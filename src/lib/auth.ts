@@ -2,17 +2,22 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
 const jwtSecret = process.env.JWT_SECRET
-if (!jwtSecret && process.env.NODE_ENV === 'production') {
-  console.error('CRITICAL: JWT_SECRET is not set in production!')
+if (!jwtSecret) {
+  // Em produção, NUNCA aceitar sem secret — impede tokens forjados
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CRITICAL: JWT_SECRET não está definido em produção!')
+  }
+  console.warn('⚠️ JWT_SECRET não definido — usando fallback APENAS em dev')
 }
 const SECRET = new TextEncoder().encode(
-  jwtSecret ?? 'ads-dashboard-dev-only-secret-2024'
+  jwtSecret || 'dev-only-fallback-never-use-in-prod-' + Math.random()
 )
 
 export async function signToken(payload: { userId: string; email: string }) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('7d')
+    .setIssuedAt()
+    .setExpirationTime('24h') // Reduzido de 7 dias para 24 horas
     .sign(SECRET)
 }
 

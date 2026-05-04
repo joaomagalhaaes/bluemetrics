@@ -19,9 +19,9 @@ export async function PUT(req: Request) {
       )
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return NextResponse.json(
-        { error: 'A nova senha deve ter pelo menos 6 caracteres' },
+        { error: 'A nova senha deve ter pelo menos 8 caracteres' },
         { status: 400 },
       )
     }

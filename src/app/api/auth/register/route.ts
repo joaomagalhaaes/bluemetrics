@@ -2,16 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/auth'
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: 3 registros por minuto por IP
+    const ip = getClientIP(req)
+    const limit = checkRateLimit(`register:${ip}`, { maxAttempts: 3, windowSeconds: 60 })
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: `Muitas tentativas. Tente novamente em ${limit.retryAfterSeconds}s.` },
+        { status: 429 },
+      )
+    }
+
     const { name, email, cpf, phone, password } = await req.json()
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Preencha todos os campos' }, { status: 400 })
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Senha deve ter ao menos 6 caracteres' }, { status: 400 })
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Senha deve ter ao menos 8 caracteres' }, { status: 400 })
     }
 
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -45,7 +56,13 @@ export async function POST(req: NextRequest) {
     const token = await signToken({ userId: user.id, email: user.email })
 
     const res = NextResponse.json({ ok: true })
-    res.cookies.set('token', token, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 * 7 })
+    res.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 horas
+    })
     return res
   } catch {
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
