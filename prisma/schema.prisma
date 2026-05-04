@@ -27,16 +27,17 @@ model User {
 }
 
 model Client {
-  id          String   @id @default(cuid())
-  name        String
-  adAccountId String
-  accessToken String?
-  appId       String?
-  appSecret   String?
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  leads       Lead[]
+  id             String    @id @default(cuid())
+  name           String
+  adAccountId    String
+  accessToken    String?
+  appId          String?
+  appSecret      String?
+  tokenExpiresAt DateTime?
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  leads          Lead[]
 }
 
 model WhatsappInstance {

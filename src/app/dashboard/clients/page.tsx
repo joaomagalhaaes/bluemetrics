@@ -1,11 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Key, ChevronDown, ChevronUp, Building2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, Key, ChevronDown, ChevronUp, Building2, CheckCircle2, AlertCircle, ExternalLink, Clock, ShieldCheck } from 'lucide-react'
 
 interface Client {
   id: string; name: string; adAccountId: string
-  hasToken: boolean; createdAt: string
+  hasToken: boolean; tokenExpiresAt: string | null; createdAt: string
+}
+
+function tokenStatus(expiresAt: string | null): { label: string; color: string; icon: 'ok' | 'warning' | 'expired' } {
+  if (!expiresAt) return { label: 'Validade desconhecida', color: 'text-gray-400', icon: 'ok' }
+  const diff = new Date(expiresAt).getTime() - Date.now()
+  const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+  if (days <= 0) return { label: 'Token expirado', color: 'text-red-500', icon: 'expired' }
+  if (days <= 7) return { label: `Expira em ${days} dia${days > 1 ? 's' : ''}`, color: 'text-amber-500', icon: 'warning' }
+  return { label: `Expira em ${days} dias`, color: 'text-green-500', icon: 'ok' }
 }
 
 export default function ClientsPage() {
@@ -18,7 +27,10 @@ export default function ClientsPage() {
   // Edição de token
   const [editingToken, setEditingToken] = useState<string | null>(null)
   const [newToken, setNewToken] = useState('')
+  const [newAppId, setNewAppId] = useState('')
+  const [newAppSecret, setNewAppSecret] = useState('')
   const [savingToken, setSavingToken] = useState(false)
+  const [tokenWarning, setTokenWarning] = useState<string | null>(null)
 
   useEffect(() => { loadClients() }, [])
 
@@ -45,14 +57,25 @@ export default function ClientsPage() {
 
   async function handleUpdateToken(id: string) {
     setSavingToken(true)
+    setTokenWarning(null)
     try {
-      await fetch('/api/clients', {
+      const payload: Record<string, string> = { id, accessToken: newToken }
+      if (newAppId) payload.appId = newAppId
+      if (newAppSecret) payload.appSecret = newAppSecret
+      const res = await fetch('/api/clients', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, accessToken: newToken }),
+        body: JSON.stringify(payload),
       })
-      setEditingToken(null)
-      setNewToken('')
+      const data = await res.json()
+      if (data.tokenExchangeWarning) {
+        setTokenWarning(data.tokenExchangeWarning)
+      } else {
+        setEditingToken(null)
+        setNewToken('')
+        setNewAppId('')
+        setNewAppSecret('')
+      }
       loadClients()
     } finally { setSavingToken(false) }
   }
@@ -140,6 +163,35 @@ export default function ClientsPage() {
               <p className="text-xs text-gray-400 mt-1">Sem o token, serão exibidos dados de exemplo.</p>
             </div>
 
+            {/* App ID e App Secret para token de longa duração */}
+            <div className="bg-blue-50/50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3 border border-blue-100 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <ShieldCheck size={13} className="text-blue-400" />
+                Token de longa duração (60 dias)
+              </p>
+              <p className="text-[11px] text-gray-400 -mt-1">
+                Preencha para que o token seja automaticamente convertido e dure 60 dias ao invés de poucas horas.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">App ID</label>
+                  <input value={form.appId} onChange={e => setForm(f => ({ ...f, appId: e.target.value }))}
+                    placeholder="123456789"
+                    className="w-full px-3 py-2 rounded-lg border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">App Secret</label>
+                  <input value={form.appSecret} onChange={e => setForm(f => ({ ...f, appSecret: e.target.value }))}
+                    placeholder="abc123..."
+                    type="password"
+                    className="w-full px-3 py-2 rounded-lg border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs font-mono" />
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Encontre em: <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-blue-400 underline">developers.facebook.com</a> → Seu App → Configurações → Básico
+              </p>
+            </div>
+
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={loading}
                 className="px-5 py-2.5 bg-blue-400 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl">
@@ -219,9 +271,19 @@ export default function ClientsPage() {
                     </div>
                     <div className="bg-blue-50/50 dark:bg-gray-800 rounded-xl p-3">
                       <p className="text-gray-400 mb-0.5">Status do token</p>
-                      <p className={`font-semibold ${client.hasToken ? 'text-green-500' : 'text-amber-500'}`}>
-                        {client.hasToken ? 'Configurado' : 'Pendente'}
-                      </p>
+                      {client.hasToken ? (
+                        <>
+                          <p className="font-semibold text-green-500">Configurado</p>
+                          {client.tokenExpiresAt && (
+                            <p className={`mt-0.5 flex items-center gap-1 ${tokenStatus(client.tokenExpiresAt).color}`}>
+                              <Clock size={10} />
+                              {tokenStatus(client.tokenExpiresAt).label}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="font-semibold text-amber-500">Pendente</p>
+                      )}
                     </div>
                   </div>
 
@@ -231,17 +293,40 @@ export default function ClientsPage() {
                       <input value={newToken} onChange={e => setNewToken(e.target.value)}
                         placeholder="Cole o novo token aqui..."
                         className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+
+                      <div className="bg-blue-50/50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                          <ShieldCheck size={12} className="text-blue-400" /> Para token de longa duração (60 dias):
+                        </p>
+                        <input value={newAppId} onChange={e => setNewAppId(e.target.value)}
+                          placeholder="App ID (ex: 123456789)"
+                          className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        <input value={newAppSecret} onChange={e => setNewAppSecret(e.target.value)}
+                          placeholder="App Secret"
+                          type="password"
+                          className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        <p className="text-[10px] text-gray-400">
+                          Encontre em: developers.facebook.com → Seu App → Configurações → Básico
+                        </p>
+                      </div>
+
+                      {tokenWarning && (
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                          <p className="text-xs text-amber-700 dark:text-amber-300">⚠️ {tokenWarning}</p>
+                        </div>
+                      )}
+
                       <div className="flex gap-2">
                         <button onClick={() => handleUpdateToken(client.id)} disabled={savingToken || !newToken}
                           className="px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg">
-                          {savingToken ? 'Salvando...' : 'Salvar token'}
+                          {savingToken ? 'Trocando token...' : 'Salvar token'}
                         </button>
-                        <button onClick={() => { setEditingToken(null); setNewToken('') }}
+                        <button onClick={() => { setEditingToken(null); setNewToken(''); setNewAppId(''); setNewAppSecret(''); setTokenWarning(null) }}
                           className="px-3 py-1.5 text-xs text-gray-500">Cancelar</button>
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setEditingToken(client.id)}
+                    <button onClick={() => { setEditingToken(client.id); setTokenWarning(null) }}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
                       <Key size={12} /> {client.hasToken ? 'Atualizar token' : 'Adicionar token'}
                     </button>
