@@ -102,7 +102,7 @@ export default function ReportsPage() {
       `CPM,"${fmt.currency(data.cpm)}"`,
       `Leads,"${fmt.number(data.leads)}"`,
       `Conversões,"${fmt.number(data.conversions)}"`,
-      `Engajamentos,"${fmt.number(data.postEngagements)}"`,
+      `Visitas no Perfil,"${fmt.number(data.postEngagements)}"`,
     ]
 
     if (appointments.length > 0) {
@@ -206,7 +206,7 @@ export default function ReportsPage() {
     { label: 'CPM',                  value: fmt.currency(data.cpm),               desc: 'Custo a cada 1.000 impressões' },
     { label: 'Leads Captados',       value: fmt.number(data.leads),               desc: 'Formulários e cadastros preenchidos' },
     { label: 'Conversões',           value: fmt.number(data.conversions),          desc: 'Ações de conversão registradas' },
-    { label: 'Engajamentos',         value: fmt.number(data.postEngagements),      desc: 'Curtidas, comentários e compartilhamentos' },
+    { label: 'Visitas no Perfil',     value: fmt.number(data.postEngagements),      desc: 'Pessoas que visitaram o perfil pelo anúncio' },
   ] : []
 
   return (
