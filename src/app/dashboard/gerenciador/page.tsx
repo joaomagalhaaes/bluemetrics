@@ -5,7 +5,8 @@ import {
   LayoutGrid, ChevronRight, ArrowLeft, ChevronDown,
   MousePointerClick, DollarSign, Users, MessageCircle,
   Target, Loader2, AlertTriangle, Layers, Megaphone,
-  Image, Eye, ShoppingCart, UserPlus, BarChart3
+  Image, Eye, ShoppingCart, UserPlus, BarChart3, Trophy,
+  ArrowUpRight, ArrowDownRight
 } from 'lucide-react'
 
 interface Metrics {
@@ -360,6 +361,155 @@ function TopSummary({ m, campaigns }: { m: Metrics; campaigns: Campaign[] }) {
 }
 
 /* ─────────────────────────────────────────────────
+   RANKING DE CAMPANHAS
+   ───────────────────────────────────────────────── */
+type SortKey = 'resultados' | 'conversas' | 'cliques' | 'alcance' | 'ctr' | 'menor_cpc'
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'resultados',  label: 'Mais resultados' },
+  { value: 'conversas',   label: 'Mais conversas' },
+  { value: 'cliques',     label: 'Mais cliques' },
+  { value: 'alcance',     label: 'Maior alcance' },
+  { value: 'ctr',         label: 'Melhor CTR' },
+  { value: 'menor_cpc',   label: 'Menor CPC' },
+]
+
+function getResultCount(m: Metrics): number {
+  return m.conversasIniciadas + m.leads + m.compras
+}
+
+function getSortValue(m: Metrics, key: SortKey): number {
+  switch (key) {
+    case 'resultados':  return getResultCount(m)
+    case 'conversas':   return m.conversasIniciadas
+    case 'cliques':     return m.cliquesNoLink
+    case 'alcance':     return m.alcance
+    case 'ctr':         return m.ctr
+    case 'menor_cpc':   return m.cpc > 0 ? -m.cpc : -Infinity // negativo p/ ordenar menor primeiro
+  }
+}
+
+function sortValueLabel(m: Metrics, key: SortKey): string {
+  switch (key) {
+    case 'resultados':  return `${fmt(getResultCount(m))} resultados`
+    case 'conversas':   return `${fmt(m.conversasIniciadas)} conversas`
+    case 'cliques':     return `${fmt(m.cliquesNoLink)} cliques`
+    case 'alcance':     return `${fmt(m.alcance)} pessoas`
+    case 'ctr':         return `${pct(m.ctr)} CTR`
+    case 'menor_cpc':   return `${money(m.cpc)} CPC`
+  }
+}
+
+function RankingSection({ campaigns, sortBy, onSortChange }: {
+  campaigns: Campaign[]
+  sortBy: SortKey
+  onSortChange: (k: SortKey) => void
+}) {
+  const ranked = campaigns
+    .filter(c => c.metrics)
+    .map(c => ({ ...c, metrics: c.metrics! }))
+    .sort((a, b) => getSortValue(b.metrics, sortBy) - getSortValue(a.metrics, sortBy))
+    .slice(0, 5)
+
+  if (ranked.length < 2) return null
+
+  const best = ranked[0]
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 mb-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Trophy size={16} className="text-amber-500" />
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            Ranking de campanhas
+          </p>
+        </div>
+        <select
+          value={sortBy}
+          onChange={e => onSortChange(e.target.value as SortKey)}
+          className="text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          {SORT_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        {ranked.map((c, i) => {
+          const m = c.metrics
+          const isFirst = i === 0
+          const bestVal = getSortValue(best.metrics, sortBy)
+          const thisVal = getSortValue(m, sortBy)
+          const barPct = bestVal !== 0 ? Math.max((Math.abs(thisVal) / Math.abs(bestVal)) * 100, 5) : 5
+
+          return (
+            <div key={c.id} className={`rounded-xl p-3 transition-colors ${
+              isFirst
+                ? 'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border border-amber-200 dark:border-amber-800'
+                : 'bg-gray-50 dark:bg-gray-800/50'
+            }`}>
+              <div className="flex items-center gap-3 mb-2">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                  isFirst
+                    ? 'bg-amber-400 text-white'
+                    : i === 1
+                    ? 'bg-gray-300 dark:bg-gray-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                }`}>
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className={`text-sm font-semibold truncate ${
+                      isFirst ? 'text-amber-700 dark:text-amber-300' : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {c.name}
+                    </p>
+                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                      c.status === 'ACTIVE'
+                        ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                    }`}>
+                      {c.status === 'ACTIVE' ? 'Ativa' : 'Pausada'}
+                    </span>
+                  </div>
+                </div>
+                <p className={`text-sm font-bold shrink-0 ${
+                  isFirst ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-300'
+                }`}>
+                  {sortValueLabel(m, sortBy)}
+                </p>
+              </div>
+
+              {/* Barra de progresso comparativa */}
+              <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isFirst ? 'bg-amber-400' : i === 1 ? 'bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
+                  }`}
+                  style={{ width: `${barPct}%` }}
+                />
+              </div>
+
+              {/* Métricas resumo */}
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2 text-[10px] text-gray-400">
+                <span>Gasto: <strong className="text-gray-600 dark:text-gray-300">{money(m.valorGasto)}</strong></span>
+                <span>Alcance: <strong className="text-gray-600 dark:text-gray-300">{fmt(m.alcance)}</strong></span>
+                <span>Cliques: <strong className="text-gray-600 dark:text-gray-300">{fmt(m.cliquesNoLink)}</strong></span>
+                {m.conversasIniciadas > 0 && <span>Conversas: <strong className="text-green-500">{fmt(m.conversasIniciadas)}</strong></span>}
+                {m.leads > 0 && <span>Leads: <strong className="text-blue-500">{fmt(m.leads)}</strong></span>}
+                {m.compras > 0 && <span>Compras: <strong className="text-purple-500">{fmt(m.compras)}</strong></span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────
    PÁGINA
    ───────────────────────────────────────────────── */
 export default function GerenciadorPage() {
@@ -369,6 +519,7 @@ export default function GerenciadorPage() {
   const [datePreset, setDatePreset] = useState('last_30d')
 
   const [onlyActive, setOnlyActive]             = useState(false)
+  const [sortBy, setSortBy]                     = useState<SortKey>('resultados')
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [selectedAdSet, setSelectedAdSet]       = useState<AdSet | null>(null)
 
@@ -492,6 +643,11 @@ export default function GerenciadorPage() {
         <>
           {/* Resumo geral (só na visão de campanhas) */}
           {!selectedCampaign && totalMetrics && <TopSummary m={totalMetrics} campaigns={filteredCampaigns} />}
+
+          {/* Ranking de campanhas */}
+          {!selectedCampaign && (
+            <RankingSection campaigns={filteredCampaigns} sortBy={sortBy} onSortChange={setSortBy} />
+          )}
 
           {/* CAMPANHAS */}
           {!selectedCampaign && (
