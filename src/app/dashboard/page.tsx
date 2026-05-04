@@ -21,7 +21,8 @@ interface Metrics {
 interface MonthlyData {
   month: string; spend: number; clicks: number
   impressions: number; conversions: number; roas: number
-  conversationsStarted?: number
+  leads: number
+  appointments?: number; revenue?: number
 }
 interface Appointment {
   id: string; clientName: string; service: string | null
@@ -87,11 +88,22 @@ export default function DashboardPage() {
       } else {
         url += `&datePreset=${period}`
       }
-      const res = await fetch(url)
+      const [res, apptMonthlyRes] = await Promise.all([
+        fetch(url),
+        fetch('/api/appointments/monthly'),
+      ])
       const data = await res.json()
+      const apptMonthly = apptMonthlyRes.ok ? await apptMonthlyRes.json() : []
+
       if (res.ok && data.metrics) {
         setMetrics(data.metrics)
-        setMonthly(data.monthly ?? [])
+        // Mesclar dados mensais de Meta + agendamentos
+        const metaMonthly: MonthlyData[] = data.monthly ?? []
+        const merged = metaMonthly.map(m => {
+          const appt = apptMonthly.find((a: { month: string }) => a.month === m.month)
+          return { ...m, appointments: appt?.appointments ?? 0, revenue: appt?.revenue ?? 0 }
+        })
+        setMonthly(merged)
         setIsMock(data.mock ?? false)
       } else {
         setMetrics({
