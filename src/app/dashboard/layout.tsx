@@ -7,6 +7,7 @@ import BottomNav from '@/components/BottomNav'
 import DashboardHeader from '@/components/DashboardHeader'
 import SubscriptionBanner from '@/components/SubscriptionBanner'
 import SatisfactionPopup from '@/components/SatisfactionPopup'
+import ImpersonationBanner from '@/components/ImpersonationBanner'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession()
@@ -36,6 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
+        <ImpersonationBanner />
         <DashboardHeader />
 
         {banner && <SubscriptionBanner type={banner} daysLeft={daysLeft} />}

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Shield, UserX, UserCheck, Trash2, Users, AlertTriangle, RefreshCw, KeyRound, Lock, CreditCard, Clock } from 'lucide-react'
+import { Shield, UserX, UserCheck, Trash2, Users, AlertTriangle, RefreshCw, KeyRound, Lock, CreditCard, Clock, Eye } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface SubInfo {
   status: string
@@ -46,6 +47,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => { checkAdmin() }, [])
 
@@ -67,6 +69,23 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/users')
       if (res.ok) setUsers(await res.json())
     } finally { setLoading(false) }
+  }
+
+  async function handleImpersonate(userId: string, userName: string) {
+    if (!confirm(`Acessar a conta de "${userName}" como se fosse sua?`)) return
+    setActionLoading(userId)
+    try {
+      const res = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error ?? 'Erro'); return }
+      // Redireciona para o dashboard do usuário
+      router.push('/dashboard')
+      router.refresh()
+    } finally { setActionLoading(null) }
   }
 
   async function handleAction(userId: string, action: string, confirmMsg: string) {
@@ -205,6 +224,14 @@ export default function AdminPage() {
                       {/* Ações */}
                       {u.role !== 'admin' && (
                         <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {/* Acessar conta */}
+                          <button onClick={() => handleImpersonate(u.id, u.name)}
+                            disabled={isLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white rounded-lg transition-colors">
+                            <Eye size={13} />
+                            {isLoading ? '...' : 'Acessar conta'}
+                          </button>
+
                           {/* Liberar / Bloquear acesso */}
                           {u.adminApproved ? (
                             <button onClick={() => handleAction(u.id, 'revoke_access', 'Remover acesso liberado? O usuário precisará ter assinatura ativa.')}
