@@ -8,10 +8,20 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const period = req.nextUrl.searchParams.get('period') // 'week' | 'month' | 'all'
+    const sinceParam = req.nextUrl.searchParams.get('since') // YYYY-MM-DD
+    const untilParam = req.nextUrl.searchParams.get('until') // YYYY-MM-DD
 
     let dateFilter = {}
     const now = new Date()
-    if (period === 'today') {
+
+    // Custom date range tem prioridade sobre presets
+    if (sinceParam && untilParam) {
+      const start = new Date(sinceParam + 'T00:00:00')
+      const end = new Date(untilParam + 'T23:59:59.999')
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        dateFilter = { date: { gte: start, lte: end } }
+      }
+    } else if (period === 'today') {
       const start = new Date(now); start.setHours(0, 0, 0, 0)
       const end = new Date(now); end.setHours(23, 59, 59, 999)
       dateFilter = { date: { gte: start, lte: end } }
@@ -34,8 +44,11 @@ export async function GET(req: NextRequest) {
       start.setDate(now.getDate() - now.getDay())
       start.setHours(0, 0, 0, 0)
       dateFilter = { date: { gte: start } }
-    } else if (period === 'month') {
+    } else if (period === 'this_month' || period === 'month') {
       const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      dateFilter = { date: { gte: start } }
+    } else if (period === 'last_90d') {
+      const start = new Date(now); start.setDate(start.getDate() - 90); start.setHours(0, 0, 0, 0)
       dateFilter = { date: { gte: start } }
     }
 

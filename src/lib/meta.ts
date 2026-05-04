@@ -109,10 +109,18 @@ const FIELDS = [
 export async function fetchMetaMetrics(
   adAccountId: string,
   accessToken: string,
-  datePreset = 'last_30d'
+  datePreset = 'last_30d',
+  since?: string,
+  until?: string,
 ): Promise<FullMetrics> {
   const cleanId = adAccountId.replace(/^act_/, '')
-  const url = `https://graph.facebook.com/v21.0/act_${cleanId}/insights?fields=${FIELDS}&date_preset=${datePreset}&access_token=${accessToken}`
+  let dateParam: string
+  if (since && until) {
+    dateParam = `time_range={"since":"${since}","until":"${until}"}`
+  } else {
+    dateParam = `date_preset=${datePreset}`
+  }
+  const url = `https://graph.facebook.com/v21.0/act_${cleanId}/insights?fields=${FIELDS}&${dateParam}&access_token=${accessToken}`
   const res = await fetch(url)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

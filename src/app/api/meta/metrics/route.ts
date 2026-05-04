@@ -9,6 +9,8 @@ export async function GET(req: NextRequest) {
 
   const clientId   = req.nextUrl.searchParams.get('clientId')
   const datePreset = req.nextUrl.searchParams.get('datePreset') ?? 'last_30d'
+  const since      = req.nextUrl.searchParams.get('since') ?? undefined   // YYYY-MM-DD
+  const until      = req.nextUrl.searchParams.get('until') ?? undefined   // YYYY-MM-DD
 
   if (!clientId) return NextResponse.json({ error: 'clientId obrigatório' }, { status: 400 })
 
@@ -18,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (client.accessToken) {
     try {
       const [metrics, monthly] = await Promise.all([
-        fetchMetaMetrics(client.adAccountId, client.accessToken, datePreset),
+        fetchMetaMetrics(client.adAccountId, client.accessToken, datePreset, since, until),
         fetchMonthlyData(client.adAccountId, client.accessToken),
       ])
       return NextResponse.json({ metrics, monthly, mock: false })

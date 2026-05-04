@@ -38,7 +38,10 @@ const PERIODS = [
   { value: 'yesterday',  label: 'Ontem' },
   { value: 'last_7d',    label: '7 dias' },
   { value: 'last_30d',   label: '30 dias' },
+  { value: 'this_month', label: 'Este mês' },
   { value: 'last_month', label: 'Mês passado' },
+  { value: 'last_90d',   label: '90 dias' },
+  { value: 'custom',     label: 'Personalizado' },
 ]
 
 export default function DashboardPage() {
@@ -48,6 +51,9 @@ export default function DashboardPage() {
   const [monthly, setMonthly] = useState<MonthlyData[]>([])
   const [loading, setLoading] = useState(false)
   const [period, setPeriod] = useState('last_30d')
+  const [customSince, setCustomSince] = useState('')
+  const [customUntil, setCustomUntil] = useState('')
+  const [showDatePicker, setShowDatePicker] = useState(false)
   const [isMock, setIsMock] = useState(false)
 
   // Agendamentos
@@ -64,22 +70,30 @@ export default function DashboardPage() {
     })
   }, [])
 
+  const isCustom = period === 'custom' && customSince && customUntil
+
   useEffect(() => {
+    if (period === 'custom' && (!customSince || !customUntil)) return
     if (selectedClientId) loadMetrics()
     loadAppointments()
-  }, [selectedClientId, period])
+  }, [selectedClientId, period, customSince, customUntil])
 
   async function loadMetrics() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/meta/metrics?clientId=${selectedClientId}&datePreset=${period}`)
+      let url = `/api/meta/metrics?clientId=${selectedClientId}`
+      if (isCustom) {
+        url += `&since=${customSince}&until=${customUntil}`
+      } else {
+        url += `&datePreset=${period}`
+      }
+      const res = await fetch(url)
       const data = await res.json()
       if (res.ok && data.metrics) {
         setMetrics(data.metrics)
         setMonthly(data.monthly ?? [])
         setIsMock(data.mock ?? false)
       } else {
-        // Fallback para métricas zeradas quando a API falha
         setMetrics({
           spend: 0, impressions: 0, clicks: 0, cpc: 0, cpm: 0, ctr: 0,
           reach: 0, frequency: 0, conversions: 0, roas: 0,
@@ -100,7 +114,13 @@ export default function DashboardPage() {
   }
 
   async function loadAppointments() {
-    const res = await fetch(`/api/appointments?period=${period}`)
+    let url = `/api/appointments`
+    if (isCustom) {
+      url += `?since=${customSince}&until=${customUntil}`
+    } else {
+      url += `?period=${period}`
+    }
+    const res = await fetch(url)
     if (res.ok) {
       const data = await res.json()
       setAppointments(data.appointments)
@@ -154,12 +174,19 @@ export default function DashboardPage() {
     await loadAppointments()
   }
 
+  const customLabel = isCustom
+    ? `${new Date(customSince + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — ${new Date(customUntil + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+    : ''
+
   const PERIOD_LABELS: Record<string, string> = {
     today: 'hoje',
     yesterday: 'ontem',
     last_7d: 'últimos 7 dias',
     last_30d: 'últimos 30 dias',
+    this_month: 'este mês',
     last_month: 'mês passado',
+    last_90d: 'últimos 90 dias',
+    custom: customLabel || 'personalizado',
   }
 
   const fmt = {
@@ -191,12 +218,22 @@ export default function DashboardPage() {
           )}
           <div className="flex gap-1 overflow-x-auto">
             {PERIODS.map(p => (
-              <button key={p.value} onClick={() => setPeriod(p.value)}
+              <button key={p.value} onClick={() => {
+                if (p.value === 'custom') {
+                  setShowDatePicker(v => !v)
+                  setPeriod('custom')
+                } else {
+                  setPeriod(p.value)
+                  setShowDatePicker(false)
+                }
+              }}
                 className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
                   period === p.value
                     ? 'bg-blue-400 text-white shadow-sm shadow-blue-400/30'
                     : 'bg-white dark:bg-gray-900 border border-blue-100 dark:border-gray-800 text-gray-600 dark:text-gray-400'
-                }`}>{p.label}</button>
+                }`}>
+                {p.value === 'custom' && isCustom ? customLabel : p.label}
+              </button>
             ))}
           </div>
           <button onClick={loadMetrics} disabled={loading}
@@ -205,6 +242,44 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Date picker personalizado */}
+      {showDatePicker && (
+        <div className="mb-4 bg-white dark:bg-gray-900 rounded-2xl border border-blue-200 dark:border-gray-700 p-4 shadow-lg animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar size={16} className="text-blue-400" />
+            <p className="text-sm font-semibold text-gray-800 dark:text-white">Período personalizado</p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
+            <div className="flex-1 w-full">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Data inicial</label>
+              <input type="date" value={customSince}
+                onChange={e => setCustomSince(e.target.value)}
+                max={customUntil || undefined}
+                className="w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-gray-600 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div className="flex-1 w-full">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Data final</label>
+              <input type="date" value={customUntil}
+                onChange={e => setCustomUntil(e.target.value)}
+                min={customSince || undefined}
+                max={new Date().toISOString().split('T')[0]}
+                className="w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-gray-600 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <button
+              onClick={() => { if (customSince && customUntil) setShowDatePicker(false) }}
+              disabled={!customSince || !customUntil}
+              className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">
+              Aplicar
+            </button>
+          </div>
+          {customSince && customUntil && (
+            <p className="text-[10px] text-gray-400 mt-2">
+              Mostrando dados de {new Date(customSince + 'T12:00:00').toLocaleDateString('pt-BR')} até {new Date(customUntil + 'T12:00:00').toLocaleDateString('pt-BR')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Sem clientes */}
       {clients.length === 0 && !loading && (
