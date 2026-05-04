@@ -368,6 +368,7 @@ export default function GerenciadorPage() {
   const [demo, setDemo]           = useState(false)
   const [datePreset, setDatePreset] = useState('last_30d')
 
+  const [onlyActive, setOnlyActive]             = useState(false)
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [selectedAdSet, setSelectedAdSet]       = useState<AdSet | null>(null)
 
@@ -402,7 +403,12 @@ export default function GerenciadorPage() {
     return sum
   }
 
-  const totalMetrics = sumMetrics(campaigns)
+  // Filtra campanhas por status
+  const filteredCampaigns = onlyActive
+    ? campaigns.filter(c => c.status === 'ACTIVE')
+    : campaigns
+
+  const totalMetrics = sumMetrics(filteredCampaigns)
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
@@ -440,17 +446,30 @@ export default function GerenciadorPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1">
-          {DATE_OPTIONS.map(o => (
-            <button key={o.value} onClick={() => setDatePreset(o.value)}
-              className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg transition-colors ${
-                datePreset === o.value
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700 hover:border-blue-300'
-              }`}>
-              {o.label}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap gap-1">
+            {DATE_OPTIONS.map(o => (
+              <button key={o.value} onClick={() => setDatePreset(o.value)}
+                className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg transition-colors ${
+                  datePreset === o.value
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                }`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setOnlyActive(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-colors ${
+              onlyActive
+                ? 'bg-green-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700 hover:border-green-300'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${onlyActive ? 'bg-white' : 'bg-green-400'}`} />
+            Somente ativas
+          </button>
         </div>
       </div>
 
@@ -472,39 +491,65 @@ export default function GerenciadorPage() {
       ) : (
         <>
           {/* Resumo geral (só na visão de campanhas) */}
-          {!selectedCampaign && totalMetrics && <TopSummary m={totalMetrics} campaigns={campaigns} />}
+          {!selectedCampaign && totalMetrics && <TopSummary m={totalMetrics} campaigns={filteredCampaigns} />}
 
           {/* CAMPANHAS */}
           {!selectedCampaign && (
             <div className="space-y-3">
-              {campaigns.length === 0 ? (
+              {filteredCampaigns.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
                   <Megaphone size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                  <p className="text-gray-500 font-medium">Nenhuma campanha encontrada</p>
+                  <p className="text-gray-500 font-medium">
+                    {onlyActive ? 'Nenhuma campanha ativa no momento' : 'Nenhuma campanha encontrada'}
+                  </p>
                 </div>
-              ) : campaigns.map(c => (
+              ) : filteredCampaigns.map(c => (
                 <CampaignCard key={c.id} campaign={c} onClick={() => setSelectedCampaign(c)} />
               ))}
             </div>
           )}
 
           {/* CONJUNTOS */}
-          {selectedCampaign && !selectedAdSet && (
-            <div className="space-y-3">
-              {selectedCampaign.adsets.map(as => (
-                <AdSetCard key={as.id} adset={as} onClick={() => setSelectedAdSet(as)} />
-              ))}
-            </div>
-          )}
+          {selectedCampaign && !selectedAdSet && (() => {
+            const adsets = onlyActive
+              ? selectedCampaign.adsets.filter(as => as.status === 'ACTIVE')
+              : selectedCampaign.adsets
+            return (
+              <div className="space-y-3">
+                {adsets.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                    <Layers size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 font-medium">
+                      {onlyActive ? 'Nenhum conjunto ativo nesta campanha' : 'Nenhum conjunto encontrado'}
+                    </p>
+                  </div>
+                ) : adsets.map(as => (
+                  <AdSetCard key={as.id} adset={as} onClick={() => setSelectedAdSet(as)} />
+                ))}
+              </div>
+            )
+          })()}
 
           {/* ANÚNCIOS */}
-          {selectedAdSet && (
-            <div className="space-y-3">
-              {selectedAdSet.ads.map(ad => (
-                <AdCard key={ad.id} ad={ad} />
-              ))}
-            </div>
-          )}
+          {selectedAdSet && (() => {
+            const ads = onlyActive
+              ? selectedAdSet.ads.filter(ad => ad.status === 'ACTIVE')
+              : selectedAdSet.ads
+            return (
+              <div className="space-y-3">
+                {ads.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                    <Image size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 font-medium">
+                      {onlyActive ? 'Nenhum anúncio ativo neste conjunto' : 'Nenhum anúncio encontrado'}
+                    </p>
+                  </div>
+                ) : ads.map(ad => (
+                  <AdCard key={ad.id} ad={ad} />
+                ))}
+              </div>
+            )
+          })()}
         </>
       )}
     </div>
