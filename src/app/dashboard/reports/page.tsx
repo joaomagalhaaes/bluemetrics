@@ -69,7 +69,7 @@ export default function ReportsPage() {
     const csvCustoPorConversa = data.conversationsStarted > 0 ? data.spend / data.conversationsStarted : 0
     const csvFaturado = apptSummary?.completedValue ?? 0
     const csvLucro = csvFaturado - data.spend
-    const csvRoi = data.spend > 0 ? ((csvFaturado / data.spend) - 1) * 100 : 0
+    const csvRoi = data.spend > 0 ? ((csvFaturado - data.spend) / data.spend) * 100 : 0
     const csvTicketMedio = (apptSummary?.completed ?? 0) > 0 ? csvFaturado / (apptSummary?.completed ?? 1) : 0
 
     const lines = [
@@ -188,7 +188,8 @@ export default function ReportsPage() {
   const investido = data?.spend ?? 0
   const faturado = apptSummary?.completedValue ?? 0
   const lucro = faturado - investido
-  const roi = investido > 0 ? ((faturado / investido) - 1) * 100 : 0
+  // ROI = (Ganho - Investimento) / Investimento × 100
+  const roi = investido > 0 ? ((faturado - investido) / investido) * 100 : 0
 
   // Custo por conversa calculado corretamente
   const custoPorConversa = data?.costPerConversation
@@ -311,7 +312,7 @@ export default function ReportsPage() {
                 <p className={`text-xl font-bold ${roi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {roi >= 0 ? '+' : ''}{roi.toFixed(0)}%
                 </p>
-                <p className="text-[9px] text-gray-400 mt-0.5">Faturamento ÷ Investimento</p>
+                <p className="text-[9px] text-gray-400 mt-0.5">(Ganho - Investimento) ÷ Investimento</p>
               </div>
             </div>
           </div>

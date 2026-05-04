@@ -211,7 +211,8 @@ export default function DashboardPage() {
   const investido = metrics?.spend ?? 0
   const faturado = apptSummary?.completedValue ?? 0
   const lucro = faturado - investido
-  const roi = investido > 0 ? ((faturado / investido) - 1) * 100 : 0
+  // ROI = (Ganho - Investimento) / Investimento × 100
+  const roi = investido > 0 ? ((faturado - investido) / investido) * 100 : 0
 
   return (
     <div className="max-w-2xl md:max-w-5xl mx-auto px-4 pt-4 pb-4">
