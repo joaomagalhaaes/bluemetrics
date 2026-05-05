@@ -3,28 +3,28 @@ import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Busca todos os userIds que compartilham pelo menos um adAccountId com o usuário.
- * Se o user A e user B têm o mesmo adAccountId, ambos veem os mesmos agendamentos.
+ * Busca os IDs de clients que o usuário pode acessar:
+ * - Seus próprios clients
+ * - Clients de outros users que tenham o mesmo adAccountId
  */
-async function getSharedUserIds(userId: string): Promise<string[]> {
+async function getAccessibleClientIds(userId: string): Promise<string[]> {
+  // Busca os clients do usuário
   const userClients = await prisma.client.findMany({
     where: { userId },
-    select: { adAccountId: true },
+    select: { id: true, adAccountId: true },
   })
 
-  if (userClients.length === 0) return [userId]
+  if (userClients.length === 0) return []
 
   const adAccountIds = userClients.map(c => c.adAccountId)
 
+  // Busca TODOS os clients (de qualquer user) que tenham os mesmos adAccountIds
   const sharedClients = await prisma.client.findMany({
     where: { adAccountId: { in: adAccountIds } },
-    select: { userId: true },
-    distinct: ['userId'],
+    select: { id: true },
   })
 
-  const allIds = [userId, ...sharedClients.map(c => c.userId)]
-  const ids = allIds.filter((id, i) => allIds.indexOf(id) === i)
-  return ids
+  return sharedClients.map(c => c.id)
 }
 
 export async function GET(req: NextRequest) {
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
     const period = req.nextUrl.searchParams.get('period')
     const sinceParam = req.nextUrl.searchParams.get('since')
     const untilParam = req.nextUrl.searchParams.get('until')
+    const clientIdParam = req.nextUrl.searchParams.get('clientId') // filtro por client específico
 
     let dateFilter = {}
     const now = new Date()
@@ -76,11 +77,44 @@ export async function GET(req: NextRequest) {
       dateFilter = { date: { gte: start } }
     }
 
-    // Busca agendamentos do usuário + usuários que compartilham mesmos adAccountIds
-    const sharedUserIds = await getSharedUserIds(session.userId)
+    // ═══ FILTRO POR CLIENT ═══
+    let clientFilter = {}
+
+    if (clientIdParam) {
+      // Filtro por um client específico — inclui clients com mesmo adAccountId
+      const targetClient = await prisma.client.findFirst({
+        where: { id: clientIdParam },
+        select: { adAccountId: true },
+      })
+
+      if (targetClient) {
+        // Busca todos os clients com o mesmo adAccountId
+        const sameAccountClients = await prisma.client.findMany({
+          where: { adAccountId: targetClient.adAccountId },
+          select: { id: true },
+        })
+        clientFilter = { clientId: { in: sameAccountClients.map(c => c.id) } }
+      } else {
+        clientFilter = { clientId: clientIdParam }
+      }
+    } else {
+      // Sem filtro: mostra agendamentos do user + compartilhados via adAccountId
+      // MAS separados por client (só mostra se tem clientId OU pertence ao user)
+      const accessibleClientIds = await getAccessibleClientIds(session.userId)
+
+      clientFilter = {
+        OR: [
+          { userId: session.userId },                              // seus próprios (incluindo sem client)
+          { clientId: { in: accessibleClientIds } },              // de clients compartilhados
+        ],
+      }
+    }
 
     const appointments = await prisma.appointment.findMany({
-      where: { userId: { in: sharedUserIds }, ...dateFilter },
+      where: { ...clientFilter, ...dateFilter },
+      include: {
+        client: { select: { id: true, name: true, adAccountId: true } },
+      },
       orderBy: { date: 'desc' },
     })
 
@@ -113,7 +147,7 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const { clientName, service, value, date, notes } = await req.json()
+    const { clientName, service, value, date, notes, clientId } = await req.json()
     if (!clientName || value === undefined || !date) {
       return NextResponse.json({ error: 'clientName, value e date são obrigatórios' }, { status: 400 })
     }
@@ -128,7 +162,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Data inválida' }, { status: 400 })
     }
 
-    // Limite de 100 agendamentos por mês (aumentado para contas compartilhadas)
+    // Valida se o clientId pertence ao user (se fornecido)
+    if (clientId) {
+      const client = await prisma.client.findFirst({
+        where: { id: clientId, userId: session.userId },
+      })
+      if (!client) {
+        return NextResponse.json({ error: 'Conta de anúncios não encontrada' }, { status: 404 })
+      }
+    }
+
+    // Limite de 100 agendamentos por mês
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const monthCount = await prisma.appointment.count({
@@ -146,6 +190,7 @@ export async function POST(req: NextRequest) {
         date: parsedDate,
         notes: notes ? String(notes).trim().slice(0, 500) : null,
         userId: session.userId,
+        clientId: clientId || null,
       },
     })
     return NextResponse.json(appointment)
@@ -160,15 +205,42 @@ export async function PUT(req: NextRequest) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const { id, status, clientName, service, value, date, notes } = await req.json()
+    const { id, status, clientName, service, value, date, notes, clientId } = await req.json()
     if (!id) return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 })
 
     if (status && !['scheduled', 'completed', 'cancelled'].includes(status)) {
       return NextResponse.json({ error: 'Status inválido' }, { status: 400 })
     }
 
-    // Permite editar agendamentos próprios OU de contas compartilhadas
-    const sharedUserIds = await getSharedUserIds(session.userId)
+    // Verifica se o user tem acesso a esse agendamento (próprio ou compartilhado)
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      select: { userId: true, clientId: true },
+    })
+
+    if (!appointment) {
+      return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
+    }
+
+    // Verifica acesso: é dono OU tem client compartilhado
+    let hasAccess = appointment.userId === session.userId
+
+    if (!hasAccess && appointment.clientId) {
+      const apptClient = await prisma.client.findUnique({
+        where: { id: appointment.clientId },
+        select: { adAccountId: true },
+      })
+      if (apptClient) {
+        const userHasAccess = await prisma.client.findFirst({
+          where: { userId: session.userId, adAccountId: apptClient.adAccountId },
+        })
+        hasAccess = !!userHasAccess
+      }
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Sem permissão para editar este agendamento' }, { status: 403 })
+    }
 
     const data: Record<string, unknown> = {}
     if (status !== undefined) data.status = status
@@ -185,8 +257,9 @@ export async function PUT(req: NextRequest) {
       data.date = pd
     }
     if (notes !== undefined) data.notes = notes ? String(notes).trim().slice(0, 500) : null
+    if (clientId !== undefined) data.clientId = clientId || null
 
-    await prisma.appointment.updateMany({ where: { id, userId: { in: sharedUserIds } }, data })
+    await prisma.appointment.update({ where: { id }, data })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Appointments PUT error:', err)
@@ -198,11 +271,40 @@ export async function DELETE(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 })
 
-    const sharedUserIds = await getSharedUserIds(session.userId)
-    await prisma.appointment.deleteMany({ where: { id, userId: { in: sharedUserIds } } })
+    // Verifica acesso antes de deletar
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      select: { userId: true, clientId: true },
+    })
+
+    if (!appointment) {
+      return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
+    }
+
+    let hasAccess = appointment.userId === session.userId
+
+    if (!hasAccess && appointment.clientId) {
+      const apptClient = await prisma.client.findUnique({
+        where: { id: appointment.clientId },
+        select: { adAccountId: true },
+      })
+      if (apptClient) {
+        const userHasAccess = await prisma.client.findFirst({
+          where: { userId: session.userId, adAccountId: apptClient.adAccountId },
+        })
+        hasAccess = !!userHasAccess
+      }
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Sem permissão para remover este agendamento' }, { status: 403 })
+    }
+
+    await prisma.appointment.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Appointments DELETE error:', err)

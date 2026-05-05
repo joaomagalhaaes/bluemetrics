@@ -4,8 +4,15 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight,
   Clock, User, Scissors, DollarSign, StickyNote,
-  CalendarPlus, CheckCircle2, X, Trash2, Loader2, Pencil
+  CalendarPlus, CheckCircle2, X, Trash2, Loader2, Pencil,
+  Building2, ChevronDown
 } from 'lucide-react'
+
+interface ClientInfo {
+  id: string
+  name: string
+  adAccountId: string
+}
 
 interface Appointment {
   id: string
@@ -15,6 +22,16 @@ interface Appointment {
   date: string
   notes: string | null
   status: string
+  clientId: string | null
+  client: ClientInfo | null
+}
+
+interface AdClient {
+  id: string
+  name: string
+  adAccountId: string
+  hasToken: boolean
+  createdAt: string
 }
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -29,37 +46,56 @@ const STATUS_COLORS: Record<string, { bg: string; dot: string; label: string }> 
   cancelled:  { bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', dot: 'bg-red-400', label: 'Cancelado' },
 }
 
-/** Converte Date para string de data local (YYYY-MM-DD) */
 function toLocalDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** Converte Date para HH:MM local */
 function toLocalTimeStr(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export default function CalendarioPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [clients, setClients] = useState<AdClient[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
-  // Form state (criar + editar)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formLoading, setFormLoading] = useState(false)
-  const [form, setForm] = useState({ clientName: '', service: '', value: '', date: '', time: '', notes: '' })
+  const [form, setForm] = useState({ clientName: '', service: '', value: '', date: '', time: '', notes: '', clientId: '' })
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadClients() }, [])
+  useEffect(() => { loadAppointments() }, [selectedClientId])
 
-  async function loadAll() {
+  async function loadClients() {
+    try {
+      const res = await fetch('/api/clients')
+      if (res.ok) {
+        const data = await res.json()
+        setClients(data)
+        // Se tem apenas 1 client, seleciona automaticamente
+        if (data.length === 1) {
+          setSelectedClientId(data[0].id)
+        }
+      }
+    } catch { /* ignore */ }
+    await loadAppointments()
+  }
+
+  async function loadAppointments() {
     setLoading(true)
     try {
-      const res = await fetch('/api/appointments?period=all')
+      const params = new URLSearchParams({ period: 'all' })
+      if (selectedClientId && selectedClientId !== 'all') {
+        params.set('clientId', selectedClientId)
+      }
+      const res = await fetch(`/api/appointments?${params}`)
       if (res.ok) {
         const data = await res.json()
         setAppointments(data.appointments)
@@ -67,7 +103,6 @@ export default function CalendarioPage() {
     } finally { setLoading(false) }
   }
 
-  // Gera os dias do calendário
   const calendarDays = useMemo(() => {
     const firstDay = new Date(year, month, 1).getDay()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -96,10 +131,15 @@ export default function CalendarioPage() {
     return days
   }, [year, month])
 
-  // Agrupa agendamentos por data LOCAL (não UTC!)
+  // Filtra agendamentos: se um client está selecionado, mostra só os dele
+  const filteredAppointments = useMemo(() => {
+    if (selectedClientId === 'all') return appointments
+    return appointments.filter(a => a.clientId === selectedClientId || a.client?.id === selectedClientId)
+  }, [appointments, selectedClientId])
+
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, Appointment[]> = {}
-    appointments.forEach(a => {
+    filteredAppointments.forEach(a => {
       const d = new Date(a.date)
       const dateStr = toLocalDateStr(d)
       if (!map[dateStr]) map[dateStr] = []
@@ -107,7 +147,7 @@ export default function CalendarioPage() {
     })
     Object.values(map).forEach(arr => arr.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
     return map
-  }, [appointments])
+  }, [filteredAppointments])
 
   const selectedAppointments = selectedDate ? (appointmentsByDate[selectedDate] ?? []) : []
 
@@ -121,7 +161,15 @@ export default function CalendarioPage() {
   function openFormForDate(dateStr: string) {
     setSelectedDate(dateStr)
     setEditingId(null)
-    setForm({ clientName: '', service: '', value: '', date: dateStr, time: '09:00', notes: '' })
+    setForm({
+      clientName: '',
+      service: '',
+      value: '',
+      date: dateStr,
+      time: '09:00',
+      notes: '',
+      clientId: selectedClientId !== 'all' ? selectedClientId : (clients.length === 1 ? clients[0].id : ''),
+    })
     setShowForm(true)
   }
 
@@ -135,20 +183,23 @@ export default function CalendarioPage() {
       date: toLocalDateStr(d),
       time: toLocalTimeStr(d),
       notes: a.notes ?? '',
+      clientId: a.clientId ?? '',
     })
     setShowForm(true)
   }
 
   async function saveAppointment(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.clientId) {
+      alert('Selecione a conta de anúncios')
+      return
+    }
     setFormLoading(true)
     try {
-      // Cria Date local e converte para ISO (UTC) — preserva o horário correto
       const localDate = new Date(`${form.date}T${form.time}:00`)
       const isoDate = localDate.toISOString()
 
       if (editingId) {
-        // ═══ EDITAR ═══
         const res = await fetch('/api/appointments', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -159,6 +210,7 @@ export default function CalendarioPage() {
             value: form.value,
             date: isoDate,
             notes: form.notes || null,
+            clientId: form.clientId,
           }),
         })
         if (!res.ok) {
@@ -167,7 +219,6 @@ export default function CalendarioPage() {
           return
         }
       } else {
-        // ═══ CRIAR ═══
         const res = await fetch('/api/appointments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -177,6 +228,7 @@ export default function CalendarioPage() {
             value: form.value,
             date: isoDate,
             notes: form.notes || null,
+            clientId: form.clientId,
           }),
         })
         if (!res.ok) {
@@ -187,8 +239,8 @@ export default function CalendarioPage() {
       }
       setShowForm(false)
       setEditingId(null)
-      setForm({ clientName: '', service: '', value: '', date: '', time: '', notes: '' })
-      await loadAll()
+      setForm({ clientName: '', service: '', value: '', date: '', time: '', notes: '', clientId: '' })
+      await loadAppointments()
     } finally { setFormLoading(false) }
   }
 
@@ -198,13 +250,13 @@ export default function CalendarioPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
     })
-    await loadAll()
+    await loadAppointments()
   }
 
   async function deleteAppointment(id: string) {
     if (!confirm('Remover este agendamento?')) return
     await fetch(`/api/appointments?id=${id}`, { method: 'DELETE' })
-    await loadAll()
+    await loadAppointments()
   }
 
   const fmt = {
@@ -219,8 +271,7 @@ export default function CalendarioPage() {
     },
   }
 
-  // Contadores do mês
-  const monthAppointments = appointments.filter(a => {
+  const monthAppointments = filteredAppointments.filter(a => {
     const d = new Date(a.date)
     return d.getFullYear() === year && d.getMonth() === month
   })
@@ -236,7 +287,7 @@ export default function CalendarioPage() {
           <CalendarIcon size={22} className="text-blue-400" />
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Calendário</h1>
-            <p className="text-sm text-gray-400">Seus agendamentos organizados por data</p>
+            <p className="text-sm text-gray-400">Agendamentos organizados por conta</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -251,6 +302,41 @@ export default function CalendarioPage() {
           </button>
         </div>
       </div>
+
+      {/* ═══ SELETOR DE CONTA ═══ */}
+      {clients.length > 0 && (
+        <div className="mb-5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+              <Building2 size={14} />
+              Conta:
+            </div>
+            <button
+              onClick={() => setSelectedClientId('all')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                selectedClientId === 'all'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+              }`}
+            >
+              Todas
+            </button>
+            {clients.map(c => (
+              <button
+                key={c.id}
+                onClick={() => setSelectedClientId(c.id)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  selectedClientId === c.id
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Contadores do mês */}
       <div className="grid grid-cols-3 gap-3 mb-5">
@@ -285,9 +371,7 @@ export default function CalendarioPage() {
 
           <div className="grid grid-cols-7 border-b border-blue-50 dark:border-gray-800">
             {WEEKDAYS.map(d => (
-              <div key={d} className="py-2 text-center text-[10px] font-bold text-gray-400 uppercase">
-                {d}
-              </div>
+              <div key={d} className="py-2 text-center text-[10px] font-bold text-gray-400 uppercase">{d}</div>
             ))}
           </div>
 
@@ -306,21 +390,13 @@ export default function CalendarioPage() {
                 const hasCancelled = dayAppts.some(a => a.status === 'cancelled')
 
                 return (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedDate(day.dateStr)}
+                  <button key={i} onClick={() => setSelectedDate(day.dateStr)}
                     className={`relative min-h-[70px] sm:min-h-[80px] p-1.5 border-b border-r border-blue-50 dark:border-gray-800 text-left transition-colors hover:bg-blue-50 dark:hover:bg-gray-800 ${
                       !day.isCurrentMonth ? 'opacity-30' : ''
-                    } ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-inset' : ''}`}
-                  >
+                    } ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-inset' : ''}`}>
                     <span className={`text-xs font-semibold block mb-0.5 ${
-                      isToday
-                        ? 'w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center'
-                        : 'text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {day.day}
-                    </span>
-
+                      isToday ? 'w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center' : 'text-gray-700 dark:text-gray-300'
+                    }`}>{day.day}</span>
                     {dayAppts.length > 0 && (
                       <div className="space-y-0.5">
                         {dayAppts.slice(0, 2).map(a => (
@@ -337,7 +413,6 @@ export default function CalendarioPage() {
                         )}
                       </div>
                     )}
-
                     {dayAppts.length > 0 && (
                       <div className="absolute top-1 right-1 flex gap-0.5">
                         {hasScheduled && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
@@ -371,7 +446,6 @@ export default function CalendarioPage() {
                 </p>
               </div>
 
-              {/* Botão novo agendamento */}
               <div className="px-4 py-3 border-b border-blue-50 dark:border-gray-800">
                 <button onClick={() => openFormForDate(selectedDate)}
                   className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
@@ -379,15 +453,33 @@ export default function CalendarioPage() {
                 </button>
               </div>
 
-              {/* ═══ FORM (criar + editar) ═══ */}
+              {/* ═══ FORM ═══ */}
               {showForm && (
                 <form onSubmit={saveAppointment} className="px-4 py-3 border-b border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-2.5">
                   {editingId && (
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
-                      <Pencil size={10} />
-                      Editando agendamento
+                      <Pencil size={10} /> Editando agendamento
                     </div>
                   )}
+
+                  {/* Seletor de conta de anúncios */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1">
+                      <Building2 size={10} /> Conta de anúncios *
+                    </label>
+                    <select
+                      required
+                      value={form.clientId}
+                      onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
+                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      <option value="">Selecione a conta...</option>
+                      {clients.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1"><User size={10} /> Nome da cliente *</label>
                     <input required value={form.clientName} onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))}
@@ -415,7 +507,6 @@ export default function CalendarioPage() {
                         className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                   </div>
-                  {/* Campo de data (permite mudar o dia ao editar) */}
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1"><CalendarIcon size={10} /> Data</label>
                     <input type="date" value={form.date}
@@ -447,7 +538,7 @@ export default function CalendarioPage() {
                 </form>
               )}
 
-              {/* Lista de agendamentos do dia */}
+              {/* Lista de agendamentos */}
               {selectedAppointments.length === 0 && !showForm ? (
                 <div className="px-5 py-10 text-center">
                   <CalendarIcon size={28} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
@@ -455,7 +546,7 @@ export default function CalendarioPage() {
                   <p className="text-xs text-gray-400 mt-0.5">Clique acima para agendar</p>
                 </div>
               ) : (
-                <ul className="divide-y divide-gray-50 dark:divide-gray-800 max-h-[420px] overflow-y-auto">
+                <ul className="divide-y divide-gray-50 dark:divide-gray-800 max-h-[500px] overflow-y-auto">
                   {selectedAppointments.map(a => {
                     const st = STATUS_COLORS[a.status] ?? STATUS_COLORS.scheduled
                     return (
@@ -464,40 +555,38 @@ export default function CalendarioPage() {
                           <div className="bg-blue-50 dark:bg-gray-800 rounded-lg px-2 py-1 text-center shrink-0">
                             <p className="text-sm font-bold text-blue-500">{fmt.time(a.date)}</p>
                           </div>
-
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                              {a.clientName}
-                            </p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{a.clientName}</p>
                             {a.service && (
                               <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
                                 <Scissors size={10} /> {a.service}
                               </p>
                             )}
                             <p className="text-xs font-bold text-blue-500 mt-0.5">{fmt.currency(a.value)}</p>
-                            {a.notes && (
-                              <p className="text-[10px] text-gray-400 mt-0.5 italic truncate">{a.notes}</p>
+                            {a.notes && <p className="text-[10px] text-gray-400 mt-0.5 italic truncate">{a.notes}</p>}
+
+                            {/* Conta de anúncios vinculada */}
+                            {a.client && (
+                              <p className="text-[10px] text-purple-500 dark:text-purple-400 mt-0.5 flex items-center gap-1 font-medium">
+                                <Building2 size={9} /> {a.client.name}
+                              </p>
                             )}
 
                             <div className="flex items-center gap-1 mt-1.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${st.bg}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                                {st.label}
+                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />{st.label}
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Ações */}
                         <div className="flex gap-1.5 mt-2 ml-[52px] flex-wrap">
-                          {/* Editar — sempre visível (exceto cancelado) */}
                           {a.status !== 'cancelled' && (
                             <button onClick={() => openEditForm(a)}
                               className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
                               <Pencil size={11} /> Editar
                             </button>
                           )}
-
                           {a.status === 'scheduled' && (
                             <>
                               <button onClick={() => updateStatus(a.id, 'completed')}
@@ -510,23 +599,18 @@ export default function CalendarioPage() {
                               </button>
                             </>
                           )}
-
-                          {/* Reativar agendamento cancelado */}
                           {a.status === 'cancelled' && (
                             <button onClick={() => updateStatus(a.id, 'scheduled')}
                               className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
                               <CalendarIcon size={11} /> Reagendar
                             </button>
                           )}
-
-                          {/* Reverter realizado para agendado */}
                           {a.status === 'completed' && (
                             <button onClick={() => updateStatus(a.id, 'scheduled')}
                               className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
                               <CalendarIcon size={11} /> Voltar p/ agendado
                             </button>
                           )}
-
                           <button onClick={() => deleteAppointment(a.id)}
                             className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-gray-400 hover:text-red-500 transition-colors">
                             <Trash2 size={11} /> Remover

@@ -28,7 +28,7 @@ model User {
 }
 
 model Client {
-  id             String    @id @default(cuid())
+  id             String        @id @default(cuid())
   name           String
   adAccountId    String
   accessToken    String?
@@ -36,9 +36,10 @@ model Client {
   appSecret      String?
   tokenExpiresAt DateTime?
   userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt      DateTime  @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
   leads          Lead[]
+  appointments   Appointment[]
 }
 
 model WhatsappInstance {
@@ -97,6 +98,8 @@ model Appointment {
   status      String   @default("scheduled") // scheduled | completed | cancelled
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
   createdAt   DateTime @default(now())
 }
 

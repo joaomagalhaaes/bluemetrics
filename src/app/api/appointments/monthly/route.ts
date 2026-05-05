@@ -1,14 +1,35 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 /**
  * Retorna agendamentos e faturamento agrupados por mês (últimos 6 meses).
+ * Aceita ?clientId= para filtrar por conta de anúncios específica.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+    const clientIdParam = req.nextUrl.searchParams.get('clientId')
+
+    // Monta filtro base
+    let baseFilter: Record<string, unknown> = { userId: session.userId }
+
+    if (clientIdParam) {
+      // Filtra por client específico (inclui clients com mesmo adAccountId)
+      const targetClient = await prisma.client.findFirst({
+        where: { id: clientIdParam },
+        select: { adAccountId: true },
+      })
+      if (targetClient) {
+        const sameAccountClients = await prisma.client.findMany({
+          where: { adAccountId: targetClient.adAccountId },
+          select: { id: true },
+        })
+        baseFilter = { clientId: { in: sameAccountClients.map(c => c.id) } }
+      }
+    }
 
     const now = new Date()
     const months = []
@@ -21,7 +42,7 @@ export async function GET() {
 
       const appointments = await prisma.appointment.findMany({
         where: {
-          userId: session.userId,
+          ...baseFilter,
           date: { gte: start, lte: end },
         },
         select: { value: true, status: true },
