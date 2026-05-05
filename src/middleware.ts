@@ -11,6 +11,7 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/api/auth')) return NextResponse.next()
   if (pathname.startsWith('/api/billing/webhook')) return NextResponse.next()
   if (pathname.startsWith('/api/whatsapp/webhook')) return NextResponse.next()
+  if (pathname.startsWith('/api/whatsapp/cloud-webhook')) return NextResponse.next()
   if (pathname.startsWith('/_next') || pathname.startsWith('/favicon') || pathname.startsWith('/icon') || pathname === '/manifest.json') {
     return NextResponse.next()
   }

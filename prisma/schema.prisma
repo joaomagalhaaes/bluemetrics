@@ -42,15 +42,19 @@ model Client {
 }
 
 model WhatsappInstance {
-  id           String   @id @default(cuid())
-  instanceName String
-  phone        String?
-  status       String   @default("disconnected") // disconnected | connecting | connected
-  qrCode       String?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  leads        Lead[]
+  id              String   @id @default(cuid())
+  instanceName    String
+  phone           String?
+  status          String   @default("disconnected") // disconnected | connecting | connected
+  qrCode          String?
+  provider        String   @default("evolution")    // evolution | cloud_api
+  phoneNumberId   String?  // Cloud API: ID do número no Meta
+  waBusinessId    String?  // Cloud API: WhatsApp Business Account ID
+  cloudApiToken   String?  // Cloud API: token permanente
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  leads           Lead[]
 }
 
 model Lead {
