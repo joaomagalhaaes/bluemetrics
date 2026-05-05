@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight,
   Clock, User, Scissors, DollarSign, StickyNote,
-  CalendarPlus, CheckCircle2, X, Trash2, Loader2
+  CalendarPlus, CheckCircle2, X, Trash2, Loader2, Pencil
 } from 'lucide-react'
 
 interface Appointment {
@@ -29,12 +29,25 @@ const STATUS_COLORS: Record<string, { bg: string; dot: string; label: string }> 
   cancelled:  { bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', dot: 'bg-red-400', label: 'Cancelado' },
 }
 
+/** Converte Date para string de data local (YYYY-MM-DD) */
+function toLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Converte Date para HH:MM local */
+function toLocalTimeStr(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 export default function CalendarioPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+
+  // Form state (criar + editar)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [formLoading, setFormLoading] = useState(false)
   const [form, setForm] = useState({ clientName: '', service: '', value: '', date: '', time: '', notes: '' })
 
@@ -54,7 +67,7 @@ export default function CalendarioPage() {
     } finally { setLoading(false) }
   }
 
-  // Gera os dias do calendário (incluindo dias do mês anterior/próximo para preencher)
+  // Gera os dias do calendário
   const calendarDays = useMemo(() => {
     const firstDay = new Date(year, month, 1).getDay()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -62,7 +75,6 @@ export default function CalendarioPage() {
 
     const days: { day: number; month: number; year: number; isCurrentMonth: boolean; dateStr: string }[] = []
 
-    // Dias do mês anterior
     for (let i = firstDay - 1; i >= 0; i--) {
       const d = daysInPrevMonth - i
       const m = month - 1 < 0 ? 11 : month - 1
@@ -70,12 +82,10 @@ export default function CalendarioPage() {
       days.push({ day: d, month: m, year: y, isCurrentMonth: false, dateStr: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` })
     }
 
-    // Dias do mês atual
     for (let d = 1; d <= daysInMonth; d++) {
       days.push({ day: d, month, year, isCurrentMonth: true, dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}` })
     }
 
-    // Dias do próximo mês para completar 6 semanas
     const remaining = 42 - days.length
     for (let d = 1; d <= remaining; d++) {
       const m = month + 1 > 11 ? 0 : month + 1
@@ -86,24 +96,23 @@ export default function CalendarioPage() {
     return days
   }, [year, month])
 
-  // Agrupa agendamentos por data
+  // Agrupa agendamentos por data LOCAL (não UTC!)
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, Appointment[]> = {}
     appointments.forEach(a => {
-      const dateStr = a.date.slice(0, 10)
+      const d = new Date(a.date)
+      const dateStr = toLocalDateStr(d)
       if (!map[dateStr]) map[dateStr] = []
       map[dateStr].push(a)
     })
-    // Ordena por hora dentro de cada dia
-    Object.values(map).forEach(arr => arr.sort((a, b) => a.date.localeCompare(b.date)))
+    Object.values(map).forEach(arr => arr.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
     return map
   }, [appointments])
 
-  // Agendamentos do dia selecionado
   const selectedAppointments = selectedDate ? (appointmentsByDate[selectedDate] ?? []) : []
 
   const today = new Date()
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const todayStr = toLocalDateStr(today)
 
   function prevMonth() { setCurrentDate(new Date(year, month - 1, 1)) }
   function nextMonth() { setCurrentDate(new Date(year, month + 1, 1)) }
@@ -111,34 +120,75 @@ export default function CalendarioPage() {
 
   function openFormForDate(dateStr: string) {
     setSelectedDate(dateStr)
+    setEditingId(null)
     setForm({ clientName: '', service: '', value: '', date: dateStr, time: '09:00', notes: '' })
     setShowForm(true)
   }
 
-  async function addAppointment(e: React.FormEvent) {
+  function openEditForm(a: Appointment) {
+    const d = new Date(a.date)
+    setEditingId(a.id)
+    setForm({
+      clientName: a.clientName,
+      service: a.service ?? '',
+      value: String(a.value),
+      date: toLocalDateStr(d),
+      time: toLocalTimeStr(d),
+      notes: a.notes ?? '',
+    })
+    setShowForm(true)
+  }
+
+  async function saveAppointment(e: React.FormEvent) {
     e.preventDefault()
     setFormLoading(true)
     try {
-      const dateTime = `${form.date}T${form.time}:00`
-      const res = await fetch('/api/appointments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: form.clientName,
-          service: form.service || null,
-          value: form.value,
-          date: dateTime,
-          notes: form.notes || null,
-        }),
-      })
-      if (res.ok) {
-        setShowForm(false)
-        setForm({ clientName: '', service: '', value: '', date: '', time: '', notes: '' })
-        await loadAll()
+      // Cria Date local e converte para ISO (UTC) — preserva o horário correto
+      const localDate = new Date(`${form.date}T${form.time}:00`)
+      const isoDate = localDate.toISOString()
+
+      if (editingId) {
+        // ═══ EDITAR ═══
+        const res = await fetch('/api/appointments', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingId,
+            clientName: form.clientName,
+            service: form.service || null,
+            value: form.value,
+            date: isoDate,
+            notes: form.notes || null,
+          }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          alert(data.error ?? 'Erro ao atualizar')
+          return
+        }
       } else {
-        const data = await res.json()
-        alert(data.error ?? 'Erro ao criar agendamento')
+        // ═══ CRIAR ═══
+        const res = await fetch('/api/appointments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientName: form.clientName,
+            service: form.service || null,
+            value: form.value,
+            date: isoDate,
+            notes: form.notes || null,
+          }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          alert(data.error ?? 'Erro ao criar agendamento')
+          return
+        }
       }
+      setShowForm(false)
+      setEditingId(null)
+      setForm({ clientName: '', service: '', value: '', date: '', time: '', notes: '' })
+      await loadAll()
     } finally { setFormLoading(false) }
   }
 
@@ -161,7 +211,7 @@ export default function CalendarioPage() {
     currency: (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     time: (dateStr: string) => {
       const d = new Date(dateStr)
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      return toLocalTimeStr(d)
     },
     fullDate: (dateStr: string) => {
       const d = new Date(dateStr + 'T12:00:00')
@@ -221,7 +271,6 @@ export default function CalendarioPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* ═══ CALENDÁRIO ═══ */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 overflow-hidden">
-          {/* Navegação do mês */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-blue-100 dark:border-gray-800 bg-blue-50/50 dark:bg-gray-800/50">
             <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-gray-700 transition-colors">
               <ChevronLeft size={18} className="text-gray-600 dark:text-gray-400" />
@@ -234,7 +283,6 @@ export default function CalendarioPage() {
             </button>
           </div>
 
-          {/* Dias da semana */}
           <div className="grid grid-cols-7 border-b border-blue-50 dark:border-gray-800">
             {WEEKDAYS.map(d => (
               <div key={d} className="py-2 text-center text-[10px] font-bold text-gray-400 uppercase">
@@ -243,7 +291,6 @@ export default function CalendarioPage() {
             ))}
           </div>
 
-          {/* Grid de dias */}
           {loading ? (
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -274,7 +321,6 @@ export default function CalendarioPage() {
                       {day.day}
                     </span>
 
-                    {/* Indicadores de agendamentos */}
                     {dayAppts.length > 0 && (
                       <div className="space-y-0.5">
                         {dayAppts.slice(0, 2).map(a => (
@@ -292,7 +338,6 @@ export default function CalendarioPage() {
                       </div>
                     )}
 
-                    {/* Dots no canto */}
                     {dayAppts.length > 0 && (
                       <div className="absolute top-1 right-1 flex gap-0.5">
                         {hasScheduled && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
@@ -306,7 +351,6 @@ export default function CalendarioPage() {
             </div>
           )}
 
-          {/* Legenda */}
           <div className="flex items-center gap-4 px-5 py-2.5 border-t border-blue-50 dark:border-gray-800">
             <span className="flex items-center gap-1 text-[10px] text-gray-400"><span className="w-2 h-2 rounded-full bg-blue-400" /> Agendado</span>
             <span className="flex items-center gap-1 text-[10px] text-gray-400"><span className="w-2 h-2 rounded-full bg-green-400" /> Realizado</span>
@@ -314,7 +358,7 @@ export default function CalendarioPage() {
           </div>
         </div>
 
-        {/* ═══ PAINEL LATERAL — DETALHES DO DIA ═══ */}
+        {/* ═══ PAINEL LATERAL ═══ */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 overflow-hidden h-fit">
           {selectedDate ? (
             <>
@@ -327,7 +371,7 @@ export default function CalendarioPage() {
                 </p>
               </div>
 
-              {/* Botão novo agendamento no dia */}
+              {/* Botão novo agendamento */}
               <div className="px-4 py-3 border-b border-blue-50 dark:border-gray-800">
                 <button onClick={() => openFormForDate(selectedDate)}
                   className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
@@ -335,9 +379,15 @@ export default function CalendarioPage() {
                 </button>
               </div>
 
-              {/* Form inline */}
+              {/* ═══ FORM (criar + editar) ═══ */}
               {showForm && (
-                <form onSubmit={addAppointment} className="px-4 py-3 border-b border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-2.5">
+                <form onSubmit={saveAppointment} className="px-4 py-3 border-b border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-2.5">
+                  {editingId && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
+                      <Pencil size={10} />
+                      Editando agendamento
+                    </div>
+                  )}
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1"><User size={10} /> Nome da cliente *</label>
                     <input required value={form.clientName} onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))}
@@ -365,6 +415,13 @@ export default function CalendarioPage() {
                         className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                   </div>
+                  {/* Campo de data (permite mudar o dia ao editar) */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1"><CalendarIcon size={10} /> Data</label>
+                    <input type="date" value={form.date}
+                      onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase flex items-center gap-1"><StickyNote size={10} /> Observações</label>
                     <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -373,10 +430,16 @@ export default function CalendarioPage() {
                   </div>
                   <div className="flex gap-2 pt-1">
                     <button type="submit" disabled={formLoading}
-                      className="flex-1 py-2 text-xs font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg flex items-center justify-center gap-1">
-                      {formLoading ? <><Loader2 size={12} className="animate-spin" /> Salvando...</> : 'Salvar'}
+                      className={`flex-1 py-2 text-xs font-semibold ${editingId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-500 hover:bg-blue-600'} disabled:opacity-50 text-white rounded-lg flex items-center justify-center gap-1`}>
+                      {formLoading ? (
+                        <><Loader2 size={12} className="animate-spin" /> Salvando...</>
+                      ) : editingId ? (
+                        <><Pencil size={12} /> Salvar alterações</>
+                      ) : (
+                        'Salvar'
+                      )}
                     </button>
-                    <button type="button" onClick={() => setShowForm(false)}
+                    <button type="button" onClick={() => { setShowForm(false); setEditingId(null) }}
                       className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400">
                       Cancelar
                     </button>
@@ -398,12 +461,10 @@ export default function CalendarioPage() {
                     return (
                       <li key={a.id} className={`px-4 py-3 ${a.status === 'cancelled' ? 'opacity-50' : ''}`}>
                         <div className="flex items-start gap-2.5">
-                          {/* Hora */}
                           <div className="bg-blue-50 dark:bg-gray-800 rounded-lg px-2 py-1 text-center shrink-0">
                             <p className="text-sm font-bold text-blue-500">{fmt.time(a.date)}</p>
                           </div>
 
-                          {/* Info */}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                               {a.clientName}
@@ -418,7 +479,6 @@ export default function CalendarioPage() {
                               <p className="text-[10px] text-gray-400 mt-0.5 italic truncate">{a.notes}</p>
                             )}
 
-                            {/* Status badge */}
                             <div className="flex items-center gap-1 mt-1.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${st.bg}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
@@ -429,22 +489,49 @@ export default function CalendarioPage() {
                         </div>
 
                         {/* Ações */}
-                        {a.status === 'scheduled' && (
-                          <div className="flex gap-1.5 mt-2 ml-[52px]">
-                            <button onClick={() => updateStatus(a.id, 'completed')}
-                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors">
-                              <CheckCircle2 size={11} /> Realizado
+                        <div className="flex gap-1.5 mt-2 ml-[52px] flex-wrap">
+                          {/* Editar — sempre visível (exceto cancelado) */}
+                          {a.status !== 'cancelled' && (
+                            <button onClick={() => openEditForm(a)}
+                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
+                              <Pencil size={11} /> Editar
                             </button>
-                            <button onClick={() => updateStatus(a.id, 'cancelled')}
-                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
-                              <X size={11} /> Cancelar
+                          )}
+
+                          {a.status === 'scheduled' && (
+                            <>
+                              <button onClick={() => updateStatus(a.id, 'completed')}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-md hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors">
+                                <CheckCircle2 size={11} /> Realizado
+                              </button>
+                              <button onClick={() => updateStatus(a.id, 'cancelled')}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                                <X size={11} /> Cancelar
+                              </button>
+                            </>
+                          )}
+
+                          {/* Reativar agendamento cancelado */}
+                          {a.status === 'cancelled' && (
+                            <button onClick={() => updateStatus(a.id, 'scheduled')}
+                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                              <CalendarIcon size={11} /> Reagendar
                             </button>
-                            <button onClick={() => deleteAppointment(a.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-gray-400 hover:text-red-500 transition-colors">
-                              <Trash2 size={11} /> Remover
+                          )}
+
+                          {/* Reverter realizado para agendado */}
+                          {a.status === 'completed' && (
+                            <button onClick={() => updateStatus(a.id, 'scheduled')}
+                              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                              <CalendarIcon size={11} /> Voltar p/ agendado
                             </button>
-                          </div>
-                        )}
+                          )}
+
+                          <button onClick={() => deleteAppointment(a.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-gray-400 hover:text-red-500 transition-colors">
+                            <Trash2 size={11} /> Remover
+                          </button>
+                        </div>
                       </li>
                     )
                   })}
