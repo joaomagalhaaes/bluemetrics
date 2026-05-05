@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 /**
  * Retorna agendamentos e faturamento agrupados por mês (últimos 6 meses).
- * Aceita ?clientId= para filtrar por conta de anúncios específica.
+ * Filtra por userId. Aceita ?clientId= para filtrar por conta específica.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -13,22 +13,9 @@ export async function GET(req: NextRequest) {
 
     const clientIdParam = req.nextUrl.searchParams.get('clientId')
 
-    // Monta filtro base
-    let baseFilter: Record<string, unknown> = { userId: session.userId }
-
+    const baseFilter: Record<string, unknown> = { userId: session.userId }
     if (clientIdParam) {
-      // Filtra por client específico (inclui clients com mesmo adAccountId)
-      const targetClient = await prisma.client.findFirst({
-        where: { id: clientIdParam },
-        select: { adAccountId: true },
-      })
-      if (targetClient) {
-        const sameAccountClients = await prisma.client.findMany({
-          where: { adAccountId: targetClient.adAccountId },
-          select: { id: true },
-        })
-        baseFilter = { clientId: { in: sameAccountClients.map(c => c.id) } }
-      }
+      baseFilter.clientId = clientIdParam
     }
 
     const now = new Date()
