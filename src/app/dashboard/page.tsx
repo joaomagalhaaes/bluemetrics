@@ -370,22 +370,22 @@ export default function DashboardPage() {
             {/* Resumo financeiro */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-white/20">
               <div>
-                <p className="text-blue-200 text-[10px] uppercase font-medium">Agendamentos</p>
-                <p className="text-lg font-bold">{fmt.currency(faturadoAgendamentos)}</p>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Lucro</p>
+                <p className={`text-lg font-bold ${lucro >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                  {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
+                </p>
               </div>
               <div>
                 <p className="text-blue-200 text-[10px] uppercase font-medium">Vendas</p>
                 <p className="text-lg font-bold">{fmt.currency(faturadoVendas)}</p>
               </div>
               <div>
-                <p className="text-blue-200 text-[10px] uppercase font-medium">Faturamento</p>
-                <p className="text-lg font-bold">{fmt.currency(faturado)}</p>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Agendamentos</p>
+                <p className="text-lg font-bold">{fmt.currency(faturadoAgendamentos)}</p>
               </div>
               <div>
-                <p className="text-blue-200 text-[10px] uppercase font-medium">Lucro</p>
-                <p className={`text-lg font-bold ${lucro >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                  {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
-                </p>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Faturamento</p>
+                <p className="text-lg font-bold">{fmt.currency(faturado)}</p>
               </div>
             </div>
             <div className="mt-2 flex items-center gap-2">
