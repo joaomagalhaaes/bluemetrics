@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   RefreshCw, HelpCircle, DollarSign, MousePointer, Eye, Users,
   Target, Activity, BarChart2, MessageCircle, CalendarPlus,
-  CheckCircle2, X, Loader2, Calendar, Trash2, TrendingUp, TrendingDown
+  CheckCircle2, X, Loader2, Calendar, Trash2, TrendingUp, TrendingDown, ShoppingBag
 } from 'lucide-react'
 import MetricCard from '@/components/MetricCard'
 import SpendChart from '@/components/SpendChart'
@@ -398,9 +398,11 @@ export default function DashboardPage() {
           </div>
 
           {/* ═══ MÉTRICAS PRINCIPAIS ═══ */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <MetricCard title="Conversas iniciadas" value={fmt.number(metrics.conversationsStarted ?? 0)} icon={MessageCircle} color="green"
               subtitle={metrics.costPerConversation ? `${fmt.currency(metrics.costPerConversation)} cada` : 'Via WhatsApp/Messenger'} />
+            <MetricCard title="Vendas" value={fmt.number(salesSummary?.completed ?? 0)} icon={ShoppingBag} color="green"
+              subtitle={salesSummary?.completedValue ? `${fmt.currency(salesSummary.completedValue)} total` : 'Nenhuma venda'} />
             <MetricCard title="Pessoas clicaram"    value={fmt.number(metrics.clicks)}           icon={MousePointer} color="blue"   subtitle={`CTR ${fmt.percent(metrics.ctr)}`} />
             <MetricCard title="Pessoas alcançadas"   value={fmt.number(metrics.reach)}            icon={Users}        color="purple" subtitle={`${metrics.frequency.toFixed(1)}x por pessoa`} />
             <MetricCard title="Vezes que apareceu"   value={fmt.number(metrics.impressions)}      icon={Eye}          color="orange" subtitle="Impressões" />
