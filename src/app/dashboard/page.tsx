@@ -33,6 +33,11 @@ interface AppointmentSummary {
   completed: number; completedValue: number
   scheduled: number; cancelled: number
 }
+interface SaleSummary {
+  total: number; totalValue: number
+  completed: number; completedValue: number
+  cancelled: number
+}
 
 const PERIODS = [
   { value: 'today',      label: 'Hoje' },
@@ -64,6 +69,9 @@ export default function DashboardPage() {
   const [apptLoading, setApptLoading] = useState(false)
   const [apptForm, setApptForm] = useState({ clientName: '', service: '', value: '', date: '', notes: '' })
 
+  // Vendas
+  const [salesSummary, setSalesSummary] = useState<SaleSummary | null>(null)
+
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(data => {
       setClients(data)
@@ -75,8 +83,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (period === 'custom' && (!customSince || !customUntil)) return
-    if (selectedClientId) loadMetrics()
+    if (!selectedClientId) return
+    loadMetrics()
     loadAppointments()
+    loadSales()
   }, [selectedClientId, period, customSince, customUntil])
 
   async function loadMetrics() {
@@ -90,7 +100,7 @@ export default function DashboardPage() {
       }
       const [res, apptMonthlyRes] = await Promise.all([
         fetch(url),
-        fetch('/api/appointments/monthly'),
+        fetch(`/api/appointments/monthly?clientId=${selectedClientId}`),
       ])
       const data = await res.json()
       const apptMonthly = apptMonthlyRes.ok ? await apptMonthlyRes.json() : []
@@ -126,17 +136,31 @@ export default function DashboardPage() {
   }
 
   async function loadAppointments() {
-    let url = `/api/appointments`
+    let url = `/api/appointments?clientId=${selectedClientId}`
     if (isCustom) {
-      url += `?since=${customSince}&until=${customUntil}`
+      url += `&since=${customSince}&until=${customUntil}`
     } else {
-      url += `?period=${period}`
+      url += `&period=${period}`
     }
     const res = await fetch(url)
     if (res.ok) {
       const data = await res.json()
       setAppointments(data.appointments)
       setApptSummary(data.summary)
+    }
+  }
+
+  async function loadSales() {
+    let url = `/api/sales?clientId=${selectedClientId}`
+    if (isCustom) {
+      url += `&since=${customSince}&until=${customUntil}`
+    } else {
+      url += `&period=${period}`
+    }
+    const res = await fetch(url)
+    if (res.ok) {
+      const data = await res.json()
+      setSalesSummary(data.summary)
     }
   }
 
@@ -207,9 +231,11 @@ export default function DashboardPage() {
     percent: (v: number) => `${v.toFixed(2)}%`,
   }
 
-  // Cálculo de lucro
+  // Cálculo de lucro (agendamentos + vendas)
   const investido = metrics?.spend ?? 0
-  const faturado = apptSummary?.completedValue ?? 0
+  const faturadoAgendamentos = apptSummary?.completedValue ?? 0
+  const faturadoVendas = salesSummary?.completedValue ?? 0
+  const faturado = faturadoAgendamentos + faturadoVendas
   const lucro = faturado - investido
   // ROI = (Ganho - Investimento) / Investimento × 100
   const roi = investido > 0 ? ((faturado - investido) / investido) * 100 : 0
@@ -342,9 +368,17 @@ export default function DashboardPage() {
               </div>
             </div>
             {/* Resumo financeiro */}
-            <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-white/20">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-white/20">
               <div>
-                <p className="text-blue-200 text-[10px] uppercase font-medium">Faturado (agendamentos)</p>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Agendamentos</p>
+                <p className="text-lg font-bold">{fmt.currency(faturadoAgendamentos)}</p>
+              </div>
+              <div>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Vendas</p>
+                <p className="text-lg font-bold">{fmt.currency(faturadoVendas)}</p>
+              </div>
+              <div>
+                <p className="text-blue-200 text-[10px] uppercase font-medium">Faturamento</p>
                 <p className="text-lg font-bold">{fmt.currency(faturado)}</p>
               </div>
               <div>
@@ -353,13 +387,13 @@ export default function DashboardPage() {
                   {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
                 </p>
               </div>
-              <div>
-                <p className="text-blue-200 text-[10px] uppercase font-medium">ROI</p>
-                <p className="text-lg font-bold flex items-center gap-1">
-                  {roi >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  {roi.toFixed(0)}%
-                </p>
-              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <p className="text-blue-200 text-[10px] uppercase font-medium">ROI</p>
+              <p className="text-sm font-bold flex items-center gap-1">
+                {roi >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                {roi.toFixed(0)}%
+              </p>
             </div>
           </div>
 
@@ -470,8 +504,11 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Total faturado</p>
+                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Faturamento total</p>
                       <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt.currency(faturado)}</p>
+                      {faturadoVendas > 0 && (
+                        <p className="text-[9px] text-green-500">+ {fmt.currency(faturadoVendas)} vendas</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Lucro líquido</p>

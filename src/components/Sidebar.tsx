@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import {
   BarChart2, LogOut, LayoutDashboard,
   MessageCircle, Zap, FileText,
-  Settings, TrendingUp, Users, Smartphone, LayoutGrid, Shield, CalendarDays, CreditCard, User
+  Settings, TrendingUp, Users, Smartphone, LayoutGrid, Shield, CalendarDays, CreditCard, User, ShoppingBag
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { Avatar } from './ProfileMenu'
@@ -18,6 +18,7 @@ const navGroups = [
       { href: '/dashboard',              icon: LayoutDashboard, label: 'Visão Geral' },
       { href: '/dashboard/gerenciador',  icon: LayoutGrid,      label: 'Gerenciador' },
       { href: '/dashboard/calendario',   icon: CalendarDays,    label: 'Calendário' },
+      { href: '/dashboard/vendas',       icon: ShoppingBag,     label: 'Vendas' },
       { href: '/dashboard/messages',     icon: MessageCircle,   label: 'Conversas & WhatsApp' },
       { href: '/dashboard/pixel',        icon: Zap,             label: 'Pixel & Conversões' },
     ],

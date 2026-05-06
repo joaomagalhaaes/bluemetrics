@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, CalendarDays, Zap, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, CalendarDays, ShoppingBag, Settings } from 'lucide-react'
 
 const items = [
   { href: '/dashboard',            icon: LayoutDashboard, label: 'Painel' },
   { href: '/dashboard/calendario', icon: CalendarDays,    label: 'Agenda' },
+  { href: '/dashboard/vendas',     icon: ShoppingBag,     label: 'Vendas' },
   { href: '/dashboard/crm',        icon: Users,           label: 'CRM' },
-  { href: '/dashboard/pixel',      icon: Zap,             label: 'Pixel' },
   { href: '/dashboard/settings',   icon: Settings,        label: 'Config.' },
 ]
 

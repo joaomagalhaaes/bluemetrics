@@ -24,6 +24,7 @@ model User {
   whatsappInstances   WhatsappInstance[]
   leads               Lead[]
   appointments        Appointment[]
+  sales               Sale[]
   subscription        Subscription?
 }
 
@@ -40,6 +41,7 @@ model Client {
   createdAt      DateTime      @default(now())
   leads          Lead[]
   appointments   Appointment[]
+  sales          Sale[]
 }
 
 model WhatsappInstance {
@@ -96,6 +98,21 @@ model Appointment {
   date        DateTime
   notes       String?
   status      String   @default("scheduled") // scheduled | completed | cancelled
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Sale {
+  id          String   @id @default(cuid())
+  product     String
+  clientName  String
+  value       Float
+  notes       String?
+  status      String   @default("completed") // completed | cancelled
+  date        DateTime @default(now())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   clientId    String?
