@@ -561,12 +561,12 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-400 font-medium">{apptSummary?.total ?? 0}/30</span>
+                <span className="text-[10px] text-gray-400 font-medium">{apptSummary?.total ?? 0}/100</span>
                 <button onClick={() => {
-                  if ((apptSummary?.total ?? 0) >= 30) { alert('Limite de 30 agendamentos por mês atingido.'); return }
+                  if ((apptSummary?.total ?? 0) >= 100) { alert('Limite de 100 agendamentos por mês atingido.'); return }
                   setShowApptForm(v => !v)
                 }}
-                  disabled={(apptSummary?.total ?? 0) >= 30}
+                  disabled={(apptSummary?.total ?? 0) >= 100}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
                   <CalendarPlus size={13} />
                   Novo agendamento
