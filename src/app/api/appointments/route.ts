@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+/**
+ * Dado um clientId, retorna todos os clientIds que compartilham o mesmo adAccountId.
+ * Ex: Sabrina(João), Dra.Sabrina(Sabrina), Dra.Sabrina(Stephani) → mesmo adAccountId
+ *     → retorna os 3 clientIds
+ */
+async function getSameAccountClientIds(clientId: string): Promise<string[]> {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { adAccountId: true },
+  })
+  if (!client) return [clientId]
+
+  const sameAccount = await prisma.client.findMany({
+    where: { adAccountId: client.adAccountId },
+    select: { id: true },
+  })
+  return sameAccount.map(c => c.id)
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
@@ -52,14 +71,35 @@ export async function GET(req: NextRequest) {
       dateFilter = { date: { gte: start } }
     }
 
-    // ═══ FILTRO SIMPLES: sempre por userId, opcionalmente por clientId ═══
-    const where: Record<string, unknown> = {
-      userId: session.userId,
-      ...dateFilter,
-    }
+    let where: Record<string, unknown>
 
     if (clientIdParam) {
-      where.clientId = clientIdParam
+      // ═══ COM FILTRO DE CLIENT: mostra agendamentos desse adAccountId ═══
+      const sharedClientIds = await getSameAccountClientIds(clientIdParam)
+      where = { clientId: { in: sharedClientIds }, ...dateFilter }
+    } else {
+      // ═══ SEM FILTRO: mostra TODOS os agendamentos dos clients do user ═══
+      // Pega os clientIds do user logado
+      const userClients = await prisma.client.findMany({
+        where: { userId: session.userId },
+        select: { id: true },
+      })
+      const userClientIds = userClients.map(c => c.id)
+
+      if (userClientIds.length > 0) {
+        // Para cada client do user, pega os clientIds compartilhados (mesmo adAccountId)
+        const allSharedIds: string[] = []
+        for (const cid of userClientIds) {
+          const shared = await getSameAccountClientIds(cid)
+          for (const sid of shared) {
+            if (allSharedIds.indexOf(sid) === -1) allSharedIds.push(sid)
+          }
+        }
+        where = { clientId: { in: allSharedIds }, ...dateFilter }
+      } else {
+        // User sem clients: mostra só os dele (antigos sem clientId)
+        where = { userId: session.userId, ...dateFilter }
+      }
     }
 
     const appointments = await prisma.appointment.findMany({
@@ -126,7 +166,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Limite por mês
-    const startOfMonth = new Date(now().getFullYear(), now().getMonth(), 1)
+    const n = new Date()
+    const startOfMonth = new Date(n.getFullYear(), n.getMonth(), 1)
     const monthCount = await prisma.appointment.count({
       where: { userId: session.userId, createdAt: { gte: startOfMonth } },
     })
@@ -152,8 +193,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function now() { return new Date() }
-
 export async function PUT(req: NextRequest) {
   try {
     const session = await getSession()
@@ -165,6 +204,22 @@ export async function PUT(req: NextRequest) {
     if (status && !['scheduled', 'completed', 'cancelled'].includes(status)) {
       return NextResponse.json({ error: 'Status inválido' }, { status: 400 })
     }
+
+    // Verifica acesso: dono OU compartilha mesmo adAccountId
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      include: { client: { select: { adAccountId: true } } },
+    })
+    if (!appointment) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
+
+    let hasAccess = appointment.userId === session.userId
+    if (!hasAccess && appointment.client) {
+      const userHas = await prisma.client.findFirst({
+        where: { userId: session.userId, adAccountId: appointment.client.adAccountId },
+      })
+      hasAccess = !!userHas
+    }
+    if (!hasAccess) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
     const data: Record<string, unknown> = {}
     if (status !== undefined) data.status = status
@@ -183,8 +238,7 @@ export async function PUT(req: NextRequest) {
     if (notes !== undefined) data.notes = notes ? String(notes).trim().slice(0, 500) : null
     if (clientId !== undefined) data.clientId = clientId || null
 
-    // Só edita agendamentos do PRÓPRIO user
-    await prisma.appointment.updateMany({ where: { id, userId: session.userId }, data })
+    await prisma.appointment.update({ where: { id }, data })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Appointments PUT error:', err)
@@ -199,8 +253,22 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 })
 
-    // Só deleta agendamentos do PRÓPRIO user
-    await prisma.appointment.deleteMany({ where: { id, userId: session.userId } })
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      include: { client: { select: { adAccountId: true } } },
+    })
+    if (!appointment) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
+
+    let hasAccess = appointment.userId === session.userId
+    if (!hasAccess && appointment.client) {
+      const userHas = await prisma.client.findFirst({
+        where: { userId: session.userId, adAccountId: appointment.client.adAccountId },
+      })
+      hasAccess = !!userHas
+    }
+    if (!hasAccess) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+
+    await prisma.appointment.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Appointments DELETE error:', err)
