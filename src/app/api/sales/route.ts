@@ -30,42 +30,47 @@ export async function GET(req: NextRequest) {
     const clientIdParam = req.nextUrl.searchParams.get('clientId')
 
     let dateFilter = {}
-    const now = new Date()
+    // Usa horário de Brasília (UTC-3) para filtros de período
+    const nowBR = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
 
     if (sinceParam && untilParam) {
-      const start = new Date(sinceParam + 'T00:00:00')
-      const end = new Date(untilParam + 'T23:59:59.999')
+      const start = new Date(sinceParam + 'T00:00:00-03:00')
+      const end = new Date(untilParam + 'T23:59:59.999-03:00')
       if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
         dateFilter = { date: { gte: start, lte: end } }
       }
     } else if (period === 'today') {
-      const start = new Date(now); start.setHours(0, 0, 0, 0)
-      const end = new Date(now); end.setHours(23, 59, 59, 999)
+      const start = new Date(`${nowBR.getFullYear()}-${String(nowBR.getMonth()+1).padStart(2,'0')}-${String(nowBR.getDate()).padStart(2,'0')}T00:00:00-03:00`)
+      const end = new Date(`${nowBR.getFullYear()}-${String(nowBR.getMonth()+1).padStart(2,'0')}-${String(nowBR.getDate()).padStart(2,'0')}T23:59:59.999-03:00`)
       dateFilter = { date: { gte: start, lte: end } }
     } else if (period === 'yesterday') {
-      const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0)
-      const end = new Date(now); end.setDate(end.getDate() - 1); end.setHours(23, 59, 59, 999)
+      const yday = new Date(nowBR); yday.setDate(yday.getDate() - 1)
+      const start = new Date(`${yday.getFullYear()}-${String(yday.getMonth()+1).padStart(2,'0')}-${String(yday.getDate()).padStart(2,'0')}T00:00:00-03:00`)
+      const end = new Date(`${yday.getFullYear()}-${String(yday.getMonth()+1).padStart(2,'0')}-${String(yday.getDate()).padStart(2,'0')}T23:59:59.999-03:00`)
       dateFilter = { date: { gte: start, lte: end } }
     } else if (period === 'last_7d') {
-      const start = new Date(now); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0)
+      const d = new Date(nowBR); d.setDate(d.getDate() - 7)
+      const start = new Date(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00-03:00`)
       dateFilter = { date: { gte: start } }
     } else if (period === 'last_30d') {
-      const start = new Date(now); start.setDate(start.getDate() - 30); start.setHours(0, 0, 0, 0)
+      const d = new Date(nowBR); d.setDate(d.getDate() - 30)
+      const start = new Date(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00-03:00`)
       dateFilter = { date: { gte: start } }
     } else if (period === 'last_month') {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+      const start = new Date(nowBR.getFullYear(), nowBR.getMonth() - 1, 1)
+      const end = new Date(nowBR.getFullYear(), nowBR.getMonth(), 0, 23, 59, 59, 999)
       dateFilter = { date: { gte: start, lte: end } }
     } else if (period === 'week') {
-      const start = new Date(now)
-      start.setDate(now.getDate() - now.getDay())
-      start.setHours(0, 0, 0, 0)
+      const d = new Date(nowBR)
+      d.setDate(nowBR.getDate() - nowBR.getDay())
+      const start = new Date(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00-03:00`)
       dateFilter = { date: { gte: start } }
     } else if (period === 'this_month' || period === 'month') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const start = new Date(`${nowBR.getFullYear()}-${String(nowBR.getMonth()+1).padStart(2,'0')}-01T00:00:00-03:00`)
       dateFilter = { date: { gte: start } }
     } else if (period === 'last_90d') {
-      const start = new Date(now); start.setDate(start.getDate() - 90); start.setHours(0, 0, 0, 0)
+      const d = new Date(nowBR); d.setDate(d.getDate() - 90)
+      const start = new Date(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00:00-03:00`)
       dateFilter = { date: { gte: start } }
     }
 
