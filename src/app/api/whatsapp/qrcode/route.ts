@@ -1,27 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getEvolutionConfig, evolutionHeaders, createInstance } from '@/lib/evolution'
 
-const EVOLUTION_URL = (process.env.EVOLUTION_API_URL ?? '').replace(/\/$/, '')
-const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY ?? ''
-
-const headers = {
-  'Content-Type': 'application/json',
-  'apikey': EVOLUTION_KEY,
-}
-
-async function ensureInstance(instanceName: string) {
-  // Tenta criar a instância no Evolution API (ignora erro se já existir)
-  await fetch(`${EVOLUTION_URL}/instance/create`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      instanceName,
-      token: '',
-      qrcode: true,
-      integration: 'WHATSAPP-BAILEYS',
-    }),
-  })
-}
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -30,17 +11,22 @@ export async function GET(req: NextRequest) {
   const instanceName = req.nextUrl.searchParams.get('instance')
   if (!instanceName) return NextResponse.json({ error: 'instance obrigatório' }, { status: 400 })
 
-  if (!EVOLUTION_URL || !EVOLUTION_KEY) {
+  const { url: EVOLUTION_URL, configured } = getEvolutionConfig()
+  if (!configured) {
     return NextResponse.json({ error: 'Evolution API não configurada' }, { status: 503 })
   }
+
+  const headers = evolutionHeaders()
+  const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://bluemetrics-phi.vercel.app'}/api/whatsapp/webhook`
 
   try {
     // 1ª tentativa: busca QR direto
     let res = await fetch(`${EVOLUTION_URL}/instance/connect/${instanceName}`, { headers })
 
-    // Se não encontrou (404), cria a instância e tenta de novo
+    // Se não encontrou (404), cria a instância com webhook e tenta de novo
     if (res.status === 404 || !res.ok) {
-      await ensureInstance(instanceName)
+      console.log(`[qrcode] Instance "${instanceName}" not found, creating with webhook...`)
+      await createInstance(instanceName, webhookUrl)
       // Aguarda um momento para a instância inicializar
       await new Promise(r => setTimeout(r, 1500))
       res = await fetch(`${EVOLUTION_URL}/instance/connect/${instanceName}`, { headers })
@@ -49,13 +35,13 @@ export async function GET(req: NextRequest) {
     const data = await res.json()
 
     if (!res.ok) {
-      console.error('Evolution API error:', data)
+      console.error('[qrcode] Evolution API error:', data)
       return NextResponse.json({ error: data.message ?? 'Erro na Evolution API' }, { status: 500 })
     }
 
     return NextResponse.json(data)
   } catch (e) {
-    console.error('QR code error:', e)
+    console.error('[qrcode] Error:', e)
     return NextResponse.json({ error: 'Não foi possível conectar à Evolution API' }, { status: 500 })
   }
 }

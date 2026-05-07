@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getConnectionState, setInstanceWebhook } from '@/lib/evolution'
 
-const EVOLUTION_URL = (process.env.EVOLUTION_API_URL ?? '').replace(/\/$/, '')
-const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY ?? ''
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -12,27 +12,35 @@ export async function GET(req: NextRequest) {
   const instanceName = req.nextUrl.searchParams.get('instance')
   if (!instanceName) return NextResponse.json({ error: 'instance obrigatório' }, { status: 400 })
 
-  if (!EVOLUTION_URL || !EVOLUTION_KEY) {
-    return NextResponse.json({ state: 'unknown' })
-  }
+  const state = await getConnectionState(instanceName)
 
-  try {
-    const res = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instanceName}`, {
-      headers: { 'apikey': EVOLUTION_KEY },
-    })
-    const data = await res.json()
-    // { instance: { instanceName, state: 'open' | 'connecting' | 'close' } }
-    const state: string = data?.instance?.state ?? data?.state ?? 'unknown'
+  // Atualiza status no banco
+  const instance = await prisma.whatsappInstance.findFirst({
+    where: { instanceName, userId: session.userId },
+  })
 
-    // Atualiza status no banco
-    await prisma.whatsappInstance.updateMany({
-      where: { instanceName, userId: session.userId },
+  if (instance) {
+    const previousStatus = instance.status
+
+    await prisma.whatsappInstance.update({
+      where: { id: instance.id },
       data: { status: state },
     })
 
-    return NextResponse.json({ state })
-  } catch (e) {
-    console.error('Status error:', e)
-    return NextResponse.json({ state: 'unknown' })
+    // Se acabou de conectar (status mudou para open), configura webhook automaticamente!
+    if (state === 'open' && previousStatus !== 'open') {
+      console.log(`[status] Instance "${instanceName}" just connected! Auto-setting webhook...`)
+      const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://bluemetrics-phi.vercel.app'}/api/whatsapp/webhook`
+      const result = await setInstanceWebhook(instanceName, webhookUrl)
+      if (result.ok) {
+        console.log(`[status] Webhook auto-configured for "${instanceName}"`)
+        return NextResponse.json({ state, webhookSet: true })
+      } else {
+        console.warn(`[status] Failed to auto-set webhook for "${instanceName}": ${result.error}`)
+        return NextResponse.json({ state, webhookSet: false, webhookError: result.error })
+      }
+    }
   }
+
+  return NextResponse.json({ state })
 }
