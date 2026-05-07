@@ -8,23 +8,37 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    console.log('[webhook] Received:', JSON.stringify({
-      event: body.event,
-      instance: body.instance,
-      sender: body.sender,
-      instanceName: body.instanceName,
-      hasData: !!body.data,
-    }))
+    // Log completo para debug
+    console.log('[webhook] FULL BODY:', JSON.stringify(body).slice(0, 1500))
 
     // Evolution v2 usa "messages.upsert", v1 pode usar "MESSAGES_UPSERT"
-    const event = (body.event ?? '').toLowerCase()
-    if (event !== 'messages.upsert' && event !== 'messages_upsert') {
+    const event = (body.event ?? '').toLowerCase().replace(/_/g, '.')
+    if (event !== 'messages.upsert') {
+      console.log(`[webhook] Ignoring event: ${body.event}`)
       return NextResponse.json({ ok: true })
     }
 
-    // Suporta Evolution API v1 (data.messages[0]) e v2 (data é a mensagem diretamente)
-    const msg = body.data?.messages?.[0] ?? (body.data?.key ? body.data : null)
-    if (!msg || msg.key?.fromMe) return NextResponse.json({ ok: true })
+    // Evolution API v2 pode enviar data como array ou objeto
+    // v2: body.data = [{ key, message, ... }] ou body.data = { key, message }
+    // v1: body.data = { messages: [{ key, message }] }
+    let msg = null
+    if (Array.isArray(body.data)) {
+      msg = body.data[0]
+    } else if (body.data?.messages && Array.isArray(body.data.messages)) {
+      msg = body.data.messages[0]
+    } else if (body.data?.key) {
+      msg = body.data
+    }
+
+    if (!msg) {
+      console.log('[webhook] No message found in data')
+      return NextResponse.json({ ok: true })
+    }
+
+    if (msg.key?.fromMe) {
+      console.log('[webhook] Message is fromMe, skipping')
+      return NextResponse.json({ ok: true })
+    }
 
     const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') ?? ''
     if (!phone || phone.includes('@')) return NextResponse.json({ ok: true })
