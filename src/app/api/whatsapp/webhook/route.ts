@@ -3,6 +3,66 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Detecta a origem do lead baseado na primeira mensagem.
+ * Mensagens padrão de anúncios Meta Ads geralmente contêm frases como
+ * "tenho interesse", "quero mais informações", "vi o anúncio", etc.
+ */
+function detectAdSource(message: string): string {
+  const msg = message.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+  const adPatterns = [
+    'tenho interesse',
+    'quero mais informac',
+    'quero saber mais',
+    'vi o anuncio',
+    'vi seu anuncio',
+    'vi no instagram',
+    'vi no facebook',
+    'vi a propaganda',
+    'vi no face',
+    'vi no insta',
+    'vi a publicacao',
+    'vi o post',
+    'gostaria de saber mais',
+    'gostaria de mais informac',
+    'ola, tenho interesse',
+    'ola tenho interesse',
+    'olá, tenho interesse',
+    'interesse e quero',
+    'me interessei',
+    'quero informac',
+    'pode me passar mais informac',
+    'mais detalhes',
+    'como funciona',
+    'qual o valor',
+    'qual valor',
+    'quanto custa',
+    'preco',
+    'tabela de preco',
+    'gostaria de agendar',
+    'quero agendar',
+    'ola! gostaria',
+    'ola, gostaria',
+    'olá! gostaria',
+    'olá, gostaria',
+    'boa tarde, tenho',
+    'bom dia, tenho',
+    'boa noite, tenho',
+    'boa tarde, gostaria',
+    'bom dia, gostaria',
+    'boa noite, gostaria',
+  ]
+
+  for (const pattern of adPatterns) {
+    if (msg.includes(pattern)) {
+      return 'Meta Ads'
+    }
+  }
+
+  return 'WhatsApp Orgânico'
+}
+
 // Webhook recebido da Evolution API quando chega mensagem no WhatsApp
 export async function POST(req: NextRequest) {
   try {
@@ -111,17 +171,19 @@ async function processMessage(
       ?? (msg as Record<string, string>).verifiedBizName
       ?? phone
 
+    const adSource = detectAdSource(message)
+
     lead = await prisma.lead.create({
       data: {
         phone,
         name: pushName,
         status: 'new',
-        adSource: 'WhatsApp',
+        adSource,
         userId: whatsappInstance.userId,
         whatsappInstanceId: whatsappInstance.id,
       },
     })
-    console.log(`[webhook] New lead created: ${lead.id} (${phone})`)
+    console.log(`[webhook] New lead created: ${lead.id} (${phone}) | origin: ${adSource}`)
   }
 
   // Se é fromMe mas não tem lead, ignora (não cria lead pra mensagens enviadas sem contexto)

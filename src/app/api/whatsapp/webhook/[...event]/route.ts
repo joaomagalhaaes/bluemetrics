@@ -3,6 +3,26 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+function detectAdSource(message: string): string {
+  const msg = message.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const adPatterns = [
+    'tenho interesse', 'quero mais informac', 'quero saber mais',
+    'vi o anuncio', 'vi seu anuncio', 'vi no instagram', 'vi no facebook',
+    'vi a propaganda', 'vi no face', 'vi no insta', 'vi a publicacao',
+    'gostaria de saber mais', 'gostaria de mais informac',
+    'ola, tenho interesse', 'ola tenho interesse',
+    'interesse e quero', 'me interessei', 'quero informac',
+    'pode me passar mais informac', 'mais detalhes', 'como funciona',
+    'qual o valor', 'qual valor', 'quanto custa', 'preco',
+    'gostaria de agendar', 'quero agendar',
+    'ola! gostaria', 'ola, gostaria',
+    'boa tarde, tenho', 'bom dia, tenho', 'boa noite, tenho',
+    'boa tarde, gostaria', 'bom dia, gostaria', 'boa noite, gostaria',
+  ]
+  for (const p of adPatterns) { if (msg.includes(p)) return 'Meta Ads' }
+  return 'WhatsApp Orgânico'
+}
+
 // Catch-all route for Evolution API v2 webhookByEvents
 // Evolution sends to /webhook/messages-upsert, /webhook/connection-update, etc.
 export async function POST(req: NextRequest, { params }: { params: { event: string[] } }) {
@@ -89,17 +109,18 @@ export async function POST(req: NextRequest, { params }: { params: { event: stri
     })
 
     if (!lead && !fromMe) {
+      const adSource = detectAdSource(message)
       lead = await prisma.lead.create({
         data: {
           phone,
           name: msg.pushName ?? msg.verifiedBizName ?? phone,
           status: 'new',
-          adSource: 'WhatsApp',
+          adSource,
           userId: whatsappInstance.userId,
           whatsappInstanceId: whatsappInstance.id,
         },
       })
-      console.log(`[webhook/${eventPath}] New lead: ${lead.id} (${phone})`)
+      console.log(`[webhook/${eventPath}] New lead: ${lead.id} (${phone}) | origin: ${adSource}`)
     }
 
     if (!lead) return NextResponse.json({ ok: true })
