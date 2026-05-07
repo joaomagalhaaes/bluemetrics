@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 const EVOLUTION_URL = (process.env.EVOLUTION_API_URL ?? '').replace(/\/$/, '')
 const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY ?? ''
 
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
   if (!instanceName) return NextResponse.json({ error: 'instanceName obrigatório' }, { status: 400 })
 
   if (!EVOLUTION_URL || !EVOLUTION_KEY) {
-    return NextResponse.json({ error: 'Evolution API não configurada' }, { status: 503 })
+    return NextResponse.json({ error: 'Evolution API não configurada. Variáveis EVOLUTION_API_URL e EVOLUTION_API_KEY são necessárias.' }, { status: 503 })
   }
 
   // Constrói a URL do webhook a partir do host do request
@@ -22,24 +24,40 @@ export async function POST(req: NextRequest) {
 
   const headers = { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY }
 
+  // Evolution API v2.x webhook body
   const webhookBody = {
     url: webhookUrl,
-    webhook_by_events: false,
-    webhook_base64: false,
     webhookByEvents: false,
     webhookBase64: false,
-    events: ['MESSAGES_UPSERT'],
+    events: [
+      'MESSAGES_UPSERT',
+      'MESSAGES_UPDATE',
+      'MESSAGES_DELETE',
+      'SEND_MESSAGE',
+      'CONNECTION_UPDATE',
+      'CONTACTS_UPSERT',
+      'CHATS_UPSERT',
+      'CHATS_UPDATE',
+      'CHATS_SET',
+      'PRESENCE_UPDATE',
+      'GROUPS_UPSERT',
+      'GROUP_UPDATE',
+      'CALL',
+      'QRCODE_UPDATED',
+    ],
     enabled: true,
   }
 
-  // Tenta diferentes endpoints da Evolution API (v1, v2 e variações)
+  // Tenta os endpoints da Evolution API v2 e v1
   const endpoints = [
-    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`,       method: 'POST' },
-    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`,       method: 'PUT'  },
-    { url: `${EVOLUTION_URL}/webhook/${instanceName}`,           method: 'POST' },
-    { url: `${EVOLUTION_URL}/webhook/${instanceName}`,           method: 'PUT'  },
-    { url: `${EVOLUTION_URL}/webhook/instance/${instanceName}`,  method: 'POST' },
-    { url: `${EVOLUTION_URL}/instance/settings/${instanceName}`, method: 'PUT'  },
+    // Evolution v2.x
+    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`, method: 'PUT' },
+    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`, method: 'POST' },
+    // Evolution v2.x alternativo
+    { url: `${EVOLUTION_URL}/webhook/${instanceName}`, method: 'PUT' },
+    { url: `${EVOLUTION_URL}/webhook/${instanceName}`, method: 'POST' },
+    // Evolution v1.x
+    { url: `${EVOLUTION_URL}/webhook/instance/${instanceName}`, method: 'POST' },
   ]
 
   const errors: string[] = []
@@ -56,7 +74,7 @@ export async function POST(req: NextRequest) {
       let data: Record<string, unknown> = {}
       try { data = JSON.parse(text) } catch { data = { raw: text } }
 
-      console.log(`[webhook-set] ${ep.method} ${ep.url} → ${res.status} | ${text.slice(0, 200)}`)
+      console.log(`[webhook-set] ${ep.method} ${ep.url} → ${res.status} | ${text.slice(0, 300)}`)
 
       if (res.ok) {
         return NextResponse.json({ ok: true, webhookUrl, endpoint: ep.url })

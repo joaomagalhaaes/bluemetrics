@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 // Webhook recebido da Evolution API quando chega mensagem no WhatsApp
 export async function POST(req: NextRequest) {
   try {
-    // Validação do webhook — se EVOLUTION_API_KEY está configurada, exige a key correta
-    const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY
-    if (EVOLUTION_KEY) {
-      const apiKey = req.headers.get('apikey')
-      if (!apiKey || apiKey !== EVOLUTION_KEY) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    const body = await req.json()
+
+    console.log('[webhook] Received:', JSON.stringify({
+      event: body.event,
+      instance: body.instance,
+      sender: body.sender,
+      instanceName: body.instanceName,
+      hasData: !!body.data,
+    }))
+
+    // Evolution v2 usa "messages.upsert", v1 pode usar "MESSAGES_UPSERT"
+    const event = (body.event ?? '').toLowerCase()
+    if (event !== 'messages.upsert' && event !== 'messages_upsert') {
+      return NextResponse.json({ ok: true })
     }
 
-    const body = await req.json()
-    const { event, data, instance } = body
-
-    if (event !== 'messages.upsert') return NextResponse.json({ ok: true })
-
     // Suporta Evolution API v1 (data.messages[0]) e v2 (data é a mensagem diretamente)
-    const msg = data?.messages?.[0] ?? (data?.key ? data : null)
+    const msg = body.data?.messages?.[0] ?? (body.data?.key ? body.data : null)
     if (!msg || msg.key?.fromMe) return NextResponse.json({ ok: true })
 
     const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') ?? ''
@@ -37,49 +41,88 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date(tsNum * 1000)
 
     // Busca a instância pelo nome (instance pode ser string ou estar em sender/instanceName)
-    const instName = typeof instance === 'string' ? instance : (body.sender ?? body.instanceName ?? '')
+    const instName = typeof body.instance === 'string'
+      ? body.instance
+      : (body.sender ?? body.instanceName ?? body.data?.instance ?? '')
+
+    console.log(`[webhook] Looking for instance: "${instName}", phone: ${phone}, message: ${message.slice(0, 50)}`)
+
     const whatsappInstance = await prisma.whatsappInstance.findFirst({
       where: { instanceName: instName },
     })
-    if (!whatsappInstance) return NextResponse.json({ ok: true })
 
-    // Busca lead existente pelo telefone
-    let lead = await prisma.lead.findFirst({
-      where: { phone, userId: whatsappInstance.userId },
-    })
+    if (!whatsappInstance) {
+      console.log(`[webhook] Instance "${instName}" not found in DB. Trying partial match...`)
+      // Tenta buscar por nome parcial
+      const allInstances = await prisma.whatsappInstance.findMany()
+      const match = allInstances.find(i =>
+        i.instanceName.toLowerCase() === instName.toLowerCase() ||
+        instName.toLowerCase().includes(i.instanceName.toLowerCase()) ||
+        i.instanceName.toLowerCase().includes(instName.toLowerCase())
+      )
+      if (!match) {
+        console.log(`[webhook] No instance match found. Available:`, allInstances.map(i => i.instanceName))
+        return NextResponse.json({ ok: true })
+      }
+      console.log(`[webhook] Partial match found: "${match.instanceName}"`)
 
-    // Se não existe, cria novo lead
-    if (!lead) {
-      lead = await prisma.lead.create({
-        data: {
-          phone,
-          name: msg.pushName ?? msg.verifiedBizName ?? phone,
-          status: 'new',
-          adSource: 'WhatsApp',
-          userId: whatsappInstance.userId,
-          whatsappInstanceId: whatsappInstance.id,
-        },
-      })
+      // Usa a instância encontrada
+      return await processMessage(match, phone, message, timestamp, msg)
     }
 
-    // Salva a mensagem
-    await prisma.conversation.create({
-      data: { leadId: lead.id, message, fromMe: false, timestamp },
-    })
-
-    // Atualiza o lead
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: { updatedAt: new Date(), status: lead.status === 'new' ? 'new' : lead.status },
-    })
-
-    return NextResponse.json({ ok: true })
+    return await processMessage(whatsappInstance, phone, message, timestamp, msg)
   } catch (err) {
-    console.error('Webhook error:', err)
+    console.error('[webhook] Error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
 
+async function processMessage(
+  whatsappInstance: { id: string; userId: string; instanceName: string },
+  phone: string,
+  message: string,
+  timestamp: Date,
+  msg: Record<string, unknown>
+) {
+  // Busca lead existente pelo telefone
+  let lead = await prisma.lead.findFirst({
+    where: { phone, userId: whatsappInstance.userId },
+  })
+
+  // Se não existe, cria novo lead
+  if (!lead) {
+    const pushName = (msg as Record<string, string>).pushName
+      ?? (msg as Record<string, string>).verifiedBizName
+      ?? phone
+
+    lead = await prisma.lead.create({
+      data: {
+        phone,
+        name: pushName,
+        status: 'new',
+        adSource: 'WhatsApp',
+        userId: whatsappInstance.userId,
+        whatsappInstanceId: whatsappInstance.id,
+      },
+    })
+    console.log(`[webhook] New lead created: ${lead.id} (${phone})`)
+  }
+
+  // Salva a mensagem
+  await prisma.conversation.create({
+    data: { leadId: lead.id, message, fromMe: false, timestamp },
+  })
+
+  // Atualiza o lead
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: { updatedAt: new Date(), status: lead.status === 'new' ? 'new' : lead.status },
+  })
+
+  console.log(`[webhook] Message saved for lead ${lead.id}: ${message.slice(0, 50)}`)
+  return NextResponse.json({ ok: true })
+}
+
 export async function GET() {
-  return NextResponse.json({ status: 'BlueMetrics Webhook OK' })
+  return NextResponse.json({ status: 'BlueMetrics Webhook OK', timestamp: new Date().toISOString() })
 }
