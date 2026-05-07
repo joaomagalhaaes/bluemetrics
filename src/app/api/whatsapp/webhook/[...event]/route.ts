@@ -39,8 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: { event: stri
       return NextResponse.json({ ok: true })
     }
 
-    if (msg.key?.fromMe) return NextResponse.json({ ok: true })
-
+    const fromMe = !!msg.key?.fromMe
     const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') ?? ''
     if (!phone || phone.includes('@')) return NextResponse.json({ ok: true })
 
@@ -57,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { event: stri
     // Try to find instance name from various fields
     const instName = body.instance ?? body.sender ?? body.instanceName ?? body.data?.instance ?? ''
 
-    console.log(`[webhook/${eventPath}] Instance: "${instName}", phone: ${phone}, msg: ${message.slice(0, 50)}`)
+    console.log(`[webhook/${eventPath}] Instance: "${instName}", phone: ${phone}, fromMe: ${fromMe}, msg: ${message.slice(0, 50)}`)
 
     // Find instance in DB
     let whatsappInstance = await prisma.whatsappInstance.findFirst({
@@ -89,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: { event: stri
       where: { phone, userId: whatsappInstance.userId },
     })
 
-    if (!lead) {
+    if (!lead && !fromMe) {
       lead = await prisma.lead.create({
         data: {
           phone,
@@ -103,8 +102,10 @@ export async function POST(req: NextRequest, { params }: { params: { event: stri
       console.log(`[webhook/${eventPath}] New lead: ${lead.id} (${phone})`)
     }
 
+    if (!lead) return NextResponse.json({ ok: true })
+
     await prisma.conversation.create({
-      data: { leadId: lead.id, message, fromMe: false, timestamp },
+      data: { leadId: lead.id, message, fromMe, timestamp },
     })
 
     await prisma.lead.update({
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: { event: stri
       data: { updatedAt: new Date() },
     })
 
-    console.log(`[webhook/${eventPath}] Message saved for lead ${lead.id}`)
+    console.log(`[webhook/${eventPath}] ${fromMe ? 'Sent' : 'Received'} msg saved for lead ${lead.id}`)
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[webhook/catch-all] Error:', err)

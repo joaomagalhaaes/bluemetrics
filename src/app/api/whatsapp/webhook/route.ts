@@ -35,11 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    if (msg.key?.fromMe) {
-      console.log('[webhook] Message is fromMe, skipping')
-      return NextResponse.json({ ok: true })
-    }
-
+    const fromMe = !!msg.key?.fromMe
     const phone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') ?? ''
     if (!phone || phone.includes('@')) return NextResponse.json({ ok: true })
 
@@ -59,32 +55,37 @@ export async function POST(req: NextRequest) {
       ? body.instance
       : (body.sender ?? body.instanceName ?? body.data?.instance ?? '')
 
-    console.log(`[webhook] Looking for instance: "${instName}", phone: ${phone}, message: ${message.slice(0, 50)}`)
+    console.log(`[webhook] Instance: "${instName}", phone: ${phone}, fromMe: ${fromMe}, msg: ${message.slice(0, 50)}`)
 
-    const whatsappInstance = await prisma.whatsappInstance.findFirst({
+    // Busca instância no banco
+    let whatsappInstance = await prisma.whatsappInstance.findFirst({
       where: { instanceName: instName },
     })
 
     if (!whatsappInstance) {
-      console.log(`[webhook] Instance "${instName}" not found in DB. Trying partial match...`)
       // Tenta buscar por nome parcial
       const allInstances = await prisma.whatsappInstance.findMany()
-      const match = allInstances.find(i =>
+      whatsappInstance = allInstances.find(i =>
         i.instanceName.toLowerCase() === instName.toLowerCase() ||
         instName.toLowerCase().includes(i.instanceName.toLowerCase()) ||
         i.instanceName.toLowerCase().includes(instName.toLowerCase())
-      )
-      if (!match) {
-        console.log(`[webhook] No instance match found. Available:`, allInstances.map(i => i.instanceName))
-        return NextResponse.json({ ok: true })
-      }
-      console.log(`[webhook] Partial match found: "${match.instanceName}"`)
+      ) ?? null
 
-      // Usa a instância encontrada
-      return await processMessage(match, phone, message, timestamp, msg)
+      if (!whatsappInstance) {
+        // Último recurso: usa a primeira instância
+        whatsappInstance = allInstances[0] ?? null
+        if (whatsappInstance) {
+          console.log(`[webhook] Fallback to first instance: "${whatsappInstance.instanceName}"`)
+        }
+      }
     }
 
-    return await processMessage(whatsappInstance, phone, message, timestamp, msg)
+    if (!whatsappInstance) {
+      console.log(`[webhook] No instance found at all`)
+      return NextResponse.json({ ok: true })
+    }
+
+    return await processMessage(whatsappInstance, phone, message, timestamp, msg, fromMe)
   } catch (err) {
     console.error('[webhook] Error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -96,15 +97,16 @@ async function processMessage(
   phone: string,
   message: string,
   timestamp: Date,
-  msg: Record<string, unknown>
+  msg: Record<string, unknown>,
+  fromMe: boolean
 ) {
   // Busca lead existente pelo telefone
   let lead = await prisma.lead.findFirst({
     where: { phone, userId: whatsappInstance.userId },
   })
 
-  // Se não existe, cria novo lead
-  if (!lead) {
+  // Se não existe e é mensagem recebida, cria novo lead
+  if (!lead && !fromMe) {
     const pushName = (msg as Record<string, string>).pushName
       ?? (msg as Record<string, string>).verifiedBizName
       ?? phone
@@ -122,18 +124,21 @@ async function processMessage(
     console.log(`[webhook] New lead created: ${lead.id} (${phone})`)
   }
 
-  // Salva a mensagem
+  // Se é fromMe mas não tem lead, ignora (não cria lead pra mensagens enviadas sem contexto)
+  if (!lead) return NextResponse.json({ ok: true })
+
+  // Salva a mensagem (recebida ou enviada)
   await prisma.conversation.create({
-    data: { leadId: lead.id, message, fromMe: false, timestamp },
+    data: { leadId: lead.id, message, fromMe, timestamp },
   })
 
   // Atualiza o lead
   await prisma.lead.update({
     where: { id: lead.id },
-    data: { updatedAt: new Date(), status: lead.status === 'new' ? 'new' : lead.status },
+    data: { updatedAt: new Date() },
   })
 
-  console.log(`[webhook] Message saved for lead ${lead.id}: ${message.slice(0, 50)}`)
+  console.log(`[webhook] ${fromMe ? 'Sent' : 'Received'} msg saved for lead ${lead.id}: ${message.slice(0, 50)}`)
   return NextResponse.json({ ok: true })
 }
 
