@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { User, Mail, Phone, CreditCard, Save, CheckCircle } from 'lucide-react'
+import { User, Mail, Phone, CreditCard, Save, CheckCircle, ArrowLeft, Shield } from 'lucide-react'
 import { Avatar } from '@/components/ProfileMenu'
+import { useRouter } from 'next/navigation'
 
 interface UserData {
   id: string; name: string; email: string
@@ -25,13 +26,27 @@ function formatPhone(value: string) {
   return v
 }
 
+function getImpersonationInfo(): { userName: string; userEmail: string; userId: string } | null {
+  try {
+    const match = document.cookie.split('; ').find(c => c.startsWith('impersonating='))
+    if (match) {
+      const value = decodeURIComponent(match.split('=').slice(1).join('='))
+      return JSON.parse(value)
+    }
+  } catch { /* nada */ }
+  return null
+}
+
 export default function ProfilePage() {
+  const router = useRouter()
   const [user, setUser] = useState<UserData | null>(null)
   const [name, setName] = useState('')
   const [cpf, setCpf] = useState('')
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [backLoading, setBackLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
@@ -40,6 +55,7 @@ export default function ProfilePage() {
       setCpf(d.cpf ? formatCPF(d.cpf) : '')
       setPhone(d.phone ? formatPhone(d.phone) : '')
     })
+    setIsImpersonating(!!getImpersonationInfo())
   }, [])
 
   async function handleSave(e: React.FormEvent) {
@@ -65,6 +81,17 @@ export default function ProfilePage() {
     } finally { setLoading(false) }
   }
 
+  async function handleBackToAdmin() {
+    setBackLoading(true)
+    try {
+      const res = await fetch('/api/admin/impersonate', { method: 'DELETE' })
+      if (res.ok) {
+        router.push('/dashboard/admin')
+        router.refresh()
+      }
+    } finally { setBackLoading(false) }
+  }
+
   if (!user) return (
     <div className="flex justify-center py-20">
       <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -76,109 +103,111 @@ export default function ProfilePage() {
       <div className="flex items-center gap-2 mb-6">
         <User size={22} className="text-blue-400" />
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Meu Perfil</h1>
-          <p className="text-sm text-gray-400">Suas informações pessoais</p>
+          <h1 className="text-xl font-bold glass-text-primary">Meu Perfil</h1>
+          <p className="text-sm glass-text-muted">Suas informações pessoais</p>
         </div>
       </div>
 
+      {/* Banner Voltar ao Admin */}
+      {isImpersonating && (
+        <button
+          onClick={handleBackToAdmin}
+          disabled={backLoading}
+          className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-60"
+          style={{
+            background: 'linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(234,88,12,0.15) 100%)',
+            border: '1px solid rgba(245,158,11,0.25)',
+            color: '#fbbf24',
+            boxShadow: '0 4px 16px rgba(245,158,11,0.15)',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'linear-gradient(135deg, rgba(245,158,11,0.3) 0%, rgba(234,88,12,0.25) 100%)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(234,88,12,0.15) 100%)')}
+        >
+          <Shield size={16} />
+          <ArrowLeft size={16} />
+          {backLoading ? 'Voltando...' : 'Voltar para minha conta (Admin)'}
+        </button>
+      )}
+
       {/* Avatar grande */}
-      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-blue-100 dark:border-gray-800 p-6 mb-4 shadow-sm text-center">
+      <div className="glass-card p-6 mb-4 text-center">
         <div className="flex justify-center mb-4">
           <Avatar name={user.name} url={user.avatarUrl} size={80} />
         </div>
-        <p className="text-lg font-bold text-gray-900 dark:text-white">{user.name}</p>
-        <p className="text-sm text-gray-400">{user.email}</p>
+        <p className="text-lg font-bold glass-text-primary">{user.name}</p>
+        <p className="text-sm glass-text-muted">{user.email}</p>
         {user.phone && (
-          <p className="text-xs text-gray-400 mt-0.5">{formatPhone(user.phone)}</p>
+          <p className="text-xs glass-text-muted mt-0.5">{formatPhone(user.phone)}</p>
         )}
-        <div className="inline-flex items-center gap-1.5 mt-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-medium px-3 py-1 rounded-full">
+        <div
+          className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium px-3 py-1 rounded-full"
+          style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)' }}
+        >
           <span className="w-1.5 h-1.5 bg-green-400 rounded-full" /> Conta ativa
         </div>
       </div>
 
       {/* Formulário */}
-      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-blue-100 dark:border-gray-800 p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Editar informações</h2>
+      <div className="glass-card p-6">
+        <h2 className="text-sm font-semibold glass-text-primary mb-4">Editar informações</h2>
         <form onSubmit={handleSave} className="space-y-4">
-          {/* Nome */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              Nome completo
-            </label>
+            <label className="block text-sm font-medium glass-text-secondary mb-1.5">Nome completo</label>
             <div className="relative">
-              <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-blue-200 dark:border-gray-700 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-              />
+              <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 glass-text-muted" />
+              <input value={name} onChange={e => setName(e.target.value)} required
+                className="w-full pl-10 pr-4 py-3 glass-input text-sm" />
             </div>
           </div>
 
-          {/* E-mail (somente leitura) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              E-mail
-            </label>
+            <label className="block text-sm font-medium glass-text-secondary mb-1.5">E-mail</label>
             <div className="relative">
-              <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={user.email}
-                disabled
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-blue-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-850 text-gray-400 text-sm cursor-not-allowed"
-              />
+              <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 glass-text-muted" />
+              <input value={user.email} disabled
+                className="w-full pl-10 pr-4 py-3 rounded-xl text-sm cursor-not-allowed"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', color: 'rgba(148,186,255,0.3)' }} />
             </div>
-            <p className="text-xs text-gray-400 mt-1">O e-mail não pode ser alterado</p>
+            <p className="text-xs glass-text-muted mt-1">O e-mail não pode ser alterado</p>
           </div>
 
-          {/* CPF */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              CPF
-            </label>
+            <label className="block text-sm font-medium glass-text-secondary mb-1.5">CPF</label>
             <div className="relative">
-              <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                inputMode="numeric"
-                value={cpf}
-                onChange={e => setCpf(formatCPF(e.target.value))}
+              <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 glass-text-muted" />
+              <input type="text" inputMode="numeric" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))}
                 placeholder="000.000.000-00"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-blue-200 dark:border-gray-700 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-              />
+                className="w-full pl-10 pr-4 py-3 glass-input text-sm" />
             </div>
           </div>
 
-          {/* Telefone */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              Telefone
-            </label>
+            <label className="block text-sm font-medium glass-text-secondary mb-1.5">Telefone</label>
             <div className="relative">
-              <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={e => setPhone(formatPhone(e.target.value))}
+              <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 glass-text-muted" />
+              <input type="tel" inputMode="numeric" value={phone} onChange={e => setPhone(formatPhone(e.target.value))}
                 placeholder="(00) 00000-0000"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-blue-200 dark:border-gray-700 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-              />
+                className="w-full pl-10 pr-4 py-3 glass-input text-sm" />
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-400 hover:bg-blue-500 disabled:opacity-60 text-white font-semibold rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-400/20"
+          <button type="submit" disabled={loading}
+            className="w-full py-3 text-white font-semibold rounded-xl flex items-center justify-center gap-2 text-sm relative overflow-hidden disabled:opacity-60"
+            style={{
+              background: 'linear-gradient(180deg, #4f8ef7 0%, #2563eb 48%, #1d4ed8 49%, #1e40af 100%)',
+              boxShadow: '0 2px 12px rgba(37,99,235,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
+            }}
           >
-            {saved
-              ? <><CheckCircle size={16} /> Salvo!</>
-              : loading
-                ? 'Salvando...'
-                : <><Save size={16} /> Salvar alterações</>
-            }
+            <span className="pointer-events-none absolute top-0 left-0 right-0 h-[50%] rounded-t-xl"
+              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)' }} />
+            <span className="relative z-10 flex items-center gap-2">
+              {saved
+                ? <><CheckCircle size={16} /> Salvo!</>
+                : loading
+                  ? 'Salvando...'
+                  : <><Save size={16} /> Salvar alterações</>
+              }
+            </span>
           </button>
         </form>
       </div>
