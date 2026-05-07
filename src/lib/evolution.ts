@@ -24,34 +24,42 @@ export async function setInstanceWebhook(instanceName: string, webhookUrl: strin
 
   const headers = evolutionHeaders()
 
+  // Evolution API v2.3.7 requires the "webhook" wrapper
   const webhookBody = {
+    webhook: {
+      url: webhookUrl,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: [
+        'MESSAGES_UPSERT',
+        'MESSAGES_UPDATE',
+        'SEND_MESSAGE',
+        'CONNECTION_UPDATE',
+        'CONTACTS_UPSERT',
+        'CHATS_UPSERT',
+      ],
+      enabled: true,
+    },
+  }
+
+  // Also try without wrapper for older versions
+  const webhookBodyFlat = {
     url: webhookUrl,
     webhookByEvents: false,
     webhookBase64: false,
-    events: [
-      'MESSAGES_UPSERT',
-      'MESSAGES_UPDATE',
-      'MESSAGES_DELETE',
-      'SEND_MESSAGE',
-      'CONNECTION_UPDATE',
-      'CONTACTS_UPSERT',
-      'CHATS_UPSERT',
-      'CHATS_UPDATE',
-      'CHATS_SET',
-      'PRESENCE_UPDATE',
-      'GROUPS_UPSERT',
-      'GROUP_UPDATE',
-      'CALL',
-      'QRCODE_UPDATED',
-    ],
+    events: ['MESSAGES_UPSERT', 'SEND_MESSAGE', 'CONNECTION_UPDATE'],
     enabled: true,
   }
 
+  const encodedName = encodeURIComponent(instanceName)
+
   const endpoints = [
-    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`, method: 'PUT' },
-    { url: `${EVOLUTION_URL}/webhook/set/${instanceName}`, method: 'POST' },
-    { url: `${EVOLUTION_URL}/webhook/${instanceName}`, method: 'PUT' },
-    { url: `${EVOLUTION_URL}/webhook/${instanceName}`, method: 'POST' },
+    // v2.3.7 format (with webhook wrapper)
+    { url: `${EVOLUTION_URL}/webhook/set/${encodedName}`, method: 'POST', body: webhookBody },
+    { url: `${EVOLUTION_URL}/webhook/set/${encodedName}`, method: 'PUT', body: webhookBody },
+    // Fallback without wrapper
+    { url: `${EVOLUTION_URL}/webhook/set/${encodedName}`, method: 'POST', body: webhookBodyFlat },
+    { url: `${EVOLUTION_URL}/webhook/set/${encodedName}`, method: 'PUT', body: webhookBodyFlat },
   ]
 
   for (const ep of endpoints) {
@@ -59,7 +67,7 @@ export async function setInstanceWebhook(instanceName: string, webhookUrl: strin
       const res = await fetch(ep.url, {
         method: ep.method,
         headers,
-        body: JSON.stringify(webhookBody),
+        body: JSON.stringify(ep.body),
       })
 
       if (res.ok) {
@@ -83,7 +91,7 @@ export async function createInstance(instanceName: string, webhookUrl: string): 
   }
 
   try {
-    // Evolution v2 - cria instância com webhook embutido
+    // Evolution v2 - cria instância
     const res = await fetch(`${EVOLUTION_URL}/instance/create`, {
       method: 'POST',
       headers: evolutionHeaders(),
@@ -92,20 +100,6 @@ export async function createInstance(instanceName: string, webhookUrl: string): 
         token: '',
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
-        webhook: {
-          url: webhookUrl,
-          webhookByEvents: false,
-          webhookBase64: false,
-          events: [
-            'MESSAGES_UPSERT',
-            'MESSAGES_UPDATE',
-            'SEND_MESSAGE',
-            'CONNECTION_UPDATE',
-            'CONTACTS_UPSERT',
-            'CHATS_UPSERT',
-          ],
-          enabled: true,
-        },
       }),
     })
 

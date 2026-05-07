@@ -8,24 +8,24 @@ datasource db {
 }
 
 model User {
-  id                  String        @id @default(cuid())
+  id                  String             @id @default(cuid())
   name                String
-  email               String        @unique
-  cpf                 String?       @unique
+  email               String             @unique
+  cpf                 String?            @unique
   phone               String?
   password            String
   avatarUrl           String?
-  role                String        @default("user")     // user | admin
-  suspended           Boolean       @default(false)
-  adminApproved       Boolean       @default(false)      // admin pode liberar acesso manualmente
-  onboardingCompleted Boolean       @default(false)
-  createdAt           DateTime      @default(now())
-  clients             Client[]
-  whatsappInstances   WhatsappInstance[]
-  leads               Lead[]
+  role                String             @default("user")
+  suspended           Boolean            @default(false)
+  adminApproved       Boolean            @default(false)
+  onboardingCompleted Boolean            @default(false)
+  createdAt           DateTime           @default(now())
   appointments        Appointment[]
+  clients             Client[]
+  leads               Lead[]
   sales               Sale[]
   subscription        Subscription?
+  whatsappInstances   WhatsappInstance[]
 }
 
 model Client {
@@ -37,95 +37,94 @@ model Client {
   appSecret      String?
   tokenExpiresAt DateTime?
   userId         String
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime      @default(now())
-  leads          Lead[]
   appointments   Appointment[]
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads          Lead[]
   sales          Sale[]
 }
 
 model WhatsappInstance {
-  id              String   @id @default(cuid())
-  instanceName    String
-  phone           String?
-  status          String   @default("disconnected") // disconnected | connecting | connected
-  qrCode          String?
-  provider        String   @default("evolution")    // evolution | cloud_api
-  phoneNumberId   String?  // Cloud API: ID do número no Meta
-  waBusinessId    String?  // Cloud API: WhatsApp Business Account ID
-  cloudApiToken   String?  // Cloud API: token permanente
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-  leads           Lead[]
+  id            String   @id @default(cuid())
+  instanceName  String
+  phone         String?
+  status        String   @default("disconnected")
+  qrCode        String?
+  userId        String
+  createdAt     DateTime @default(now())
+  cloudApiToken String?
+  phoneNumberId String?
+  provider      String   @default("evolution")
+  waBusinessId  String?
+  leads         Lead[]
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Lead {
-  id                String        @id @default(cuid())
-  name              String?
-  phone             String
-  status            String        @default("new") // new | attending | closed | lost
-  adSource          String?       // qual anúncio gerou
-  adCampaign        String?
-  notes             String?
-  closedAt          DateTime?
-  userId            String
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId          String?
-  client            Client?       @relation(fields: [clientId], references: [id])
+  id                 String            @id @default(cuid())
+  name               String?
+  phone              String
+  status             String            @default("new")
+  adSource           String?
+  adCampaign         String?
+  notes              String?
+  closedAt           DateTime?
+  userId             String
+  clientId           String?
   whatsappInstanceId String?
-  whatsappInstance  WhatsappInstance? @relation(fields: [whatsappInstanceId], references: [id])
-  conversations     Conversation[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  conversations      Conversation[]
+  client             Client?           @relation(fields: [clientId], references: [id])
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whatsappInstance   WhatsappInstance? @relation(fields: [whatsappInstanceId], references: [id])
 }
 
 model Conversation {
   id        String   @id @default(cuid())
   leadId    String
-  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   fromMe    Boolean  @default(false)
   message   String
   mediaUrl  String?
   timestamp DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }
 
 model Appointment {
-  id          String   @id @default(cuid())
-  clientName  String
-  service     String?
-  value       Float
-  date        DateTime
-  notes       String?
-  status      String   @default("scheduled") // scheduled | completed | cancelled
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId    String?
-  client      Client?  @relation(fields: [clientId], references: [id])
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  clientName String
+  service    String?
+  value      Float
+  date       DateTime
+  notes      String?
+  status     String   @default("scheduled")
+  userId     String
+  createdAt  DateTime @default(now())
+  clientId   String?
+  client     Client?  @relation(fields: [clientId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Sale {
-  id          String   @id @default(cuid())
-  product     String
-  clientName  String
-  value       Float
-  notes       String?
-  status      String   @default("completed") // completed | cancelled
-  date        DateTime @default(now())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId    String?
-  client      Client?  @relation(fields: [clientId], references: [id])
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  product    String
+  clientName String
+  value      Float
+  notes      String?
+  status     String   @default("completed")
+  date       DateTime @default(now())
+  userId     String
+  clientId   String?
+  createdAt  DateTime @default(now())
+  client     Client?  @relation(fields: [clientId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
   id                   String    @id @default(cuid())
   userId               String    @unique
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status               String    @default("trial") // trial | active | grace | suspended | cancelled
-  plan                 String?   // monthly | annual
+  status               String    @default("trial")
+  plan                 String?
   stripeCustomerId     String?
   stripeSubscriptionId String?
   currentPeriodEnd     DateTime?
@@ -134,4 +133,5 @@ model Subscription {
   suspendedAt          DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
