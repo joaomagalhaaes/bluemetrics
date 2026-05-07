@@ -17,18 +17,101 @@ body {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-blue-400/40 rounded-full;
+  background: rgba(96,165,250,0.3);
+  border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-blue-400/70;
+  background: rgba(96,165,250,0.55);
 }
 
-/* Transição suave de tema */
+/* ═══ GLASS DESIGN SYSTEM ═══ */
+
+/* Card de vidro base */
+.glass-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+  border-radius: 16px;
+}
+
+/* Card de vidro mais sutil */
+.glass-card-subtle {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+}
+
+/* Input glass */
+.glass-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(235,245,255,0.92);
+  caret-color: #60a5fa;
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.2s;
+}
+.glass-input:focus {
+  border-color: rgba(96,165,250,0.5);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.glass-input::placeholder {
+  color: rgba(148,186,255,0.3);
+}
+
+/* Select glass */
+.glass-select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(235,245,255,0.92);
+  border-radius: 12px;
+  outline: none;
+}
+.glass-select option {
+  background: #0f1a2e;
+  color: #e8f0ff;
+}
+
+/* Botão pill glass */
+.glass-pill {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(180,210,255,0.6);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+.glass-pill:hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(200,225,255,0.9);
+}
+.glass-pill-active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.35) 0%, rgba(37,99,235,0.25) 100%);
+  border: 1px solid rgba(96,165,250,0.3);
+  color: #ffffff;
+  box-shadow: 0 2px 12px rgba(59,130,246,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+/* Divider glass */
+.glass-divider {
+  border-color: rgba(255,255,255,0.06);
+}
+
+/* Texto */
+.glass-text-primary { color: #e8f0ff; }
+.glass-text-secondary { color: rgba(180,210,255,0.6); }
+.glass-text-muted { color: rgba(148,186,255,0.4); }
+.glass-text-accent { color: #60a5fa; }
+
+/* Transição suave */
 *, *::before, *::after {
-  transition-property: background-color, border-color, color;
+  transition-property: background-color, border-color, color, box-shadow, transform;
   transition-duration: 200ms;
   transition-timing-function: ease;
 }

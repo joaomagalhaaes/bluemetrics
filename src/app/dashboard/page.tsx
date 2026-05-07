@@ -245,13 +245,13 @@ export default function DashboardPage() {
       {/* Título + filtros */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Visão Geral</h1>
-          <p className="text-xs text-gray-400">Métricas em tempo real dos seus anúncios</p>
+          <h1 className="text-lg font-bold glass-text-primary">Visão Geral</h1>
+          <p className="text-xs glass-text-muted">Métricas em tempo real dos seus anúncios</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {clients.length > 1 && (
             <select value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-blue-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
+              className="px-3 py-2 rounded-xl text-xs glass-select">
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
@@ -266,10 +266,8 @@ export default function DashboardPage() {
                   setShowDatePicker(false)
                 }
               }}
-                className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-                  period === p.value
-                    ? 'bg-blue-400 text-white shadow-sm shadow-blue-400/30'
-                    : 'bg-white dark:bg-gray-900 border border-blue-100 dark:border-gray-800 text-gray-600 dark:text-gray-400'
+                className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                  period === p.value ? 'glass-pill-active' : 'glass-pill'
                 }`}>
                 {p.value === 'custom' && isCustom ? customLabel : p.label}
               </button>
@@ -284,26 +282,26 @@ export default function DashboardPage() {
 
       {/* Date picker personalizado */}
       {showDatePicker && (
-        <div className="mb-4 bg-white dark:bg-gray-900 rounded-2xl border border-blue-200 dark:border-gray-700 p-4 shadow-lg animate-in fade-in duration-200">
+        <div className="mb-4 glass-card p-4 animate-in fade-in duration-200">
           <div className="flex items-center gap-2 mb-3">
             <Calendar size={16} className="text-blue-400" />
-            <p className="text-sm font-semibold text-gray-800 dark:text-white">Período personalizado</p>
+            <p className="text-sm font-semibold glass-text-primary">Período personalizado</p>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
             <div className="flex-1 w-full">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Data inicial</label>
+              <label className="block text-[10px] font-semibold glass-text-muted uppercase mb-1">Data inicial</label>
               <input type="date" value={customSince}
                 onChange={e => setCustomSince(e.target.value)}
                 max={customUntil || undefined}
-                className="w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-gray-600 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="w-full px-3 py-2.5 rounded-xl glass-input text-sm" />
             </div>
             <div className="flex-1 w-full">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Data final</label>
+              <label className="block text-[10px] font-semibold glass-text-muted uppercase mb-1">Data final</label>
               <input type="date" value={customUntil}
                 onChange={e => setCustomUntil(e.target.value)}
                 min={customSince || undefined}
                 max={new Date().toISOString().split('T')[0]}
-                className="w-full px-3 py-2.5 rounded-xl border border-blue-200 dark:border-gray-600 bg-blue-50/40 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="w-full px-3 py-2.5 rounded-xl glass-input text-sm" />
             </div>
             <button
               onClick={() => { if (customSince && customUntil) setShowDatePicker(false) }}
@@ -323,10 +321,10 @@ export default function DashboardPage() {
       {/* Sem clientes */}
       {clients.length === 0 && !loading && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-blue-500/15 rounded-2xl flex items-center justify-center mb-4">
             <BarChart2 size={28} className="text-blue-400" />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Configure sua conta</h2>
+          <h2 className="text-lg font-semibold glass-text-primary mb-2">Configure sua conta</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
             Vá em <strong>Minha Conta</strong> para conectar seu gerenciador de anúncios.
           </p>
@@ -345,11 +343,11 @@ export default function DashboardPage() {
       {metrics && !loading && (
         <>
           {isMock && (
-            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-3">
+            <div className="mb-4 p-4 bg-amber-500/[0.08] border border-amber-500/15 rounded-2xl flex items-start gap-3">
               <HelpCircle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Dados de exemplo</p>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                <p className="text-sm font-semibold text-amber-300">Dados de exemplo</p>
+                <p className="text-xs text-amber-400 mt-0.5">
                   Configure seu Token de Acesso em <a href="/dashboard/clients" className="underline font-medium">Minha Conta</a> para ver dados reais.
                 </p>
               </div>
@@ -416,9 +414,9 @@ export default function DashboardPage() {
           </div>
 
           {/* ═══ FUNIL DE CONVERSÃO ═══ */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 mb-5 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-              <h2 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+          <div className="glass-card mb-5 overflow-hidden">
+            <div className="px-5 py-4 border-b glass-divider">
+              <h2 className="text-sm font-bold glass-text-primary flex items-center gap-2">
                 <Activity size={16} className="text-blue-400" />
                 Funil de conversão
               </h2>
@@ -439,8 +437,8 @@ export default function DashboardPage() {
                   { label: 'Alcance', value: alcance, fmt: fmt.number(alcance), color: 'bg-blue-400', lightBg: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600 dark:text-blue-400' },
                   { label: 'Cliques', value: cliques, fmt: fmt.number(cliques), color: 'bg-indigo-400', lightBg: 'bg-indigo-50 dark:bg-indigo-900/20', textColor: 'text-indigo-600 dark:text-indigo-400' },
                   { label: 'Conversas', value: conversas, fmt: fmt.number(conversas), color: 'bg-violet-400', lightBg: 'bg-violet-50 dark:bg-violet-900/20', textColor: 'text-violet-600 dark:text-violet-400' },
-                  { label: 'Agendamentos', value: agendamentos, fmt: fmt.number(agendamentos), color: 'bg-amber-400', lightBg: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-600 dark:text-amber-400' },
-                  { label: 'Realizados', value: realizados, fmt: fmt.number(realizados), color: 'bg-green-500', lightBg: 'bg-green-50 dark:bg-green-900/20', textColor: 'text-green-600 dark:text-green-400' },
+                  { label: 'Agendamentos', value: agendamentos, fmt: fmt.number(agendamentos), color: 'bg-amber-400', lightBg: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-400' },
+                  { label: 'Realizados', value: realizados, fmt: fmt.number(realizados), color: 'bg-green-500', lightBg: 'bg-green-50 dark:bg-green-900/20', textColor: 'text-emerald-400' },
                 ]
 
                 const maxVal = Math.max(...steps.map(s => s.value), 1)
@@ -457,7 +455,7 @@ export default function DashboardPage() {
                           {/* Taxa entre etapas */}
                           {convRate && (
                             <div className="flex items-center gap-2 mb-1 ml-2">
-                              <div className="w-px h-3 bg-gray-200 dark:bg-gray-700" />
+                              <div className="w-px h-3 bg-white/10" />
                               <span className="text-[10px] text-gray-400 font-medium">
                                 {convRate}% converteram
                               </span>
@@ -465,10 +463,10 @@ export default function DashboardPage() {
                           )}
                           <div className="flex items-center gap-3">
                             <div className="w-24 text-right shrink-0">
-                              <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{step.label}</p>
+                              <p className="text-[11px] font-semibold glass-text-secondary">{step.label}</p>
                             </div>
                             <div className="flex-1 relative">
-                              <div className="h-9 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                              <div className="h-9 bg-white/[0.06] rounded-lg overflow-hidden">
                                 <div
                                   className={`h-full ${step.color} rounded-lg flex items-center transition-all duration-700`}
                                   style={{ width: `${widthPct}%` }}
@@ -491,30 +489,30 @@ export default function DashboardPage() {
             {/* Valor por agendamento + faturamento */}
             {apptSummary && apptSummary.total > 0 && (
               <div className="px-5 pb-4">
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                <div className="bg-emerald-500/[0.08] border border-emerald-500/15 rounded-xl p-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
-                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Custo por agendamento</p>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      <p className="text-[10px] uppercase font-semibold text-emerald-400">Custo por agendamento</p>
+                      <p className="text-lg font-bold glass-text-primary">
                         {apptSummary.total > 0 ? fmt.currency(investido / apptSummary.total) : '-'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Ticket médio</p>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      <p className="text-[10px] uppercase font-semibold text-emerald-400">Ticket médio</p>
+                      <p className="text-lg font-bold glass-text-primary">
                         {apptSummary.completed > 0 ? fmt.currency(apptSummary.completedValue / apptSummary.completed) : '-'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Faturamento total</p>
-                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmt.currency(faturado)}</p>
+                      <p className="text-[10px] uppercase font-semibold text-emerald-400">Faturamento total</p>
+                      <p className="text-lg font-bold text-emerald-400">{fmt.currency(faturado)}</p>
                       {faturadoVendas > 0 && (
                         <p className="text-[9px] text-green-500">+ {fmt.currency(faturadoVendas)} vendas</p>
                       )}
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400">Lucro líquido</p>
-                      <p className={`text-lg font-bold ${lucro >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                      <p className="text-[10px] uppercase font-semibold text-emerald-400">Lucro líquido</p>
+                      <p className={`text-lg font-bold ${lucro >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>
                         {lucro >= 0 ? '+' : ''}{fmt.currency(lucro)}
                       </p>
                     </div>
@@ -522,17 +520,17 @@ export default function DashboardPage() {
 
                   {/* Detalhamento por agendamento realizado */}
                   {apptSummary.completed > 0 && (
-                    <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
-                      <p className="text-[10px] uppercase font-semibold text-green-600 dark:text-green-400 mb-2">Agendamentos realizados</p>
+                    <div className="mt-3 pt-3 border-t border-emerald-500/15">
+                      <p className="text-[10px] uppercase font-semibold text-emerald-400 mb-2">Agendamentos realizados</p>
                       <div className="space-y-1.5">
                         {appointments.filter(a => a.status === 'completed').slice(0, 8).map(a => (
                           <div key={a.id} className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-                              <span className="text-gray-700 dark:text-gray-300 truncate">{a.clientName}</span>
+                              <span className="glass-text-secondary truncate">{a.clientName}</span>
                               {a.service && <span className="text-gray-400 truncate hidden sm:inline">· {a.service}</span>}
                             </div>
-                            <span className="font-bold text-green-600 dark:text-green-400 shrink-0 ml-2">{fmt.currency(a.value)}</span>
+                            <span className="font-bold text-emerald-400 shrink-0 ml-2">{fmt.currency(a.value)}</span>
                           </div>
                         ))}
                         {appointments.filter(a => a.status === 'completed').length > 8 && (
@@ -549,12 +547,12 @@ export default function DashboardPage() {
           </div>
 
           {/* ═══ AGENDAMENTOS ═══ */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 mb-5 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="glass-card mb-5 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b glass-divider">
               <div className="flex items-center gap-2">
                 <Calendar size={18} className="text-blue-400" />
                 <div>
-                  <h2 className="text-sm font-bold text-gray-800 dark:text-white">Agendamentos — {PERIOD_LABELS[period] ?? 'período selecionado'}</h2>
+                  <h2 className="text-sm font-bold glass-text-primary">Agendamentos — {PERIOD_LABELS[period] ?? 'período selecionado'}</h2>
                   {apptSummary && (
                     <p className="text-[10px] text-gray-400">
                       {apptSummary.total} agendamento{apptSummary.total !== 1 ? 's' : ''} · {fmt.currency(apptSummary.totalValue)} total
@@ -578,7 +576,7 @@ export default function DashboardPage() {
 
             {/* Resumo de agendamentos */}
             {apptSummary && apptSummary.total > 0 && (
-              <div className="grid grid-cols-3 gap-3 px-5 py-3 bg-blue-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+              <div className="grid grid-cols-3 gap-3 px-5 py-3 bg-white/[0.03] border-b glass-divider">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Agendados</p>
                   <p className="text-lg font-bold text-blue-500">{apptSummary.scheduled}</p>
@@ -596,19 +594,19 @@ export default function DashboardPage() {
 
             {/* Form */}
             {showApptForm && (
-              <form onSubmit={addAppointment} className="px-5 py-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800 space-y-3">
+              <form onSubmit={addAppointment} className="px-5 py-4 bg-blue-500/[0.08] border-b border-blue-500/10 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase">Nome do cliente *</label>
                     <input required value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))}
                       placeholder="Ex: Maria Silva"
-                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg glass-input" />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase">Serviço</label>
                     <input value={apptForm.service} onChange={e => setApptForm(f => ({ ...f, service: e.target.value }))}
                       placeholder="Ex: Consulta, Corte..."
-                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg glass-input" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -617,20 +615,20 @@ export default function DashboardPage() {
                     <input required type="number" step="0.01" min="0" value={apptForm.value}
                       onChange={e => setApptForm(f => ({ ...f, value: e.target.value }))}
                       placeholder="150.00"
-                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg glass-input" />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase">Data/Hora *</label>
                     <input required type="datetime-local" value={apptForm.date}
                       onChange={e => setApptForm(f => ({ ...f, date: e.target.value }))}
-                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      className="w-full mt-1 px-3 py-2 text-sm rounded-lg glass-input" />
                   </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase">Observações</label>
                   <input value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))}
                     placeholder="Observação opcional..."
-                    className="w-full mt-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full mt-1 px-3 py-2 text-sm rounded-lg glass-input" />
                 </div>
                 <div className="flex gap-2">
                   <button type="submit" disabled={apptLoading}
@@ -648,12 +646,12 @@ export default function DashboardPage() {
             {/* Lista de agendamentos */}
             {appointments.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <Calendar size={28} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                <Calendar size={28} className="mx-auto text-white/20 mb-2" />
                 <p className="text-sm text-gray-400">Nenhum agendamento este mês</p>
                 <p className="text-xs text-gray-400 mt-1">A secretária pode adicionar aqui quando agendar um cliente</p>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-50 dark:divide-gray-800 max-h-80 overflow-y-auto">
+              <ul className="divide-y divide-white/5 max-h-80 overflow-y-auto">
                 {appointments.slice(0, 30).map(a => (
                   <li key={a.id} className="px-5 py-3 flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
@@ -661,7 +659,7 @@ export default function DashboardPage() {
                       a.status === 'cancelled' ? 'bg-red-400' : 'bg-blue-400'
                     }`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
+                      <p className="text-sm font-medium glass-text-primary truncate">
                         {a.clientName}
                         {a.service && <span className="text-gray-400 font-normal"> · {a.service}</span>}
                       </p>
@@ -669,22 +667,22 @@ export default function DashboardPage() {
                         {new Date(a.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                    <p className="text-sm font-bold text-gray-800 dark:text-white shrink-0">{fmt.currency(a.value)}</p>
+                    <p className="text-sm font-bold glass-text-primary shrink-0">{fmt.currency(a.value)}</p>
                     <div className="flex items-center gap-1 shrink-0">
                       {a.status === 'scheduled' && (
                         <button onClick={() => completeAppointment(a.id)} title="Marcar como realizado"
-                          className="p-1 rounded text-gray-300 hover:text-green-500 transition-colors">
+                          className="p-1 rounded text-white/30 hover:text-green-400 transition-colors">
                           <CheckCircle2 size={14} />
                         </button>
                       )}
                       {a.status === 'scheduled' && (
                         <button onClick={() => cancelAppointment(a.id)} title="Cancelar"
-                          className="p-1 rounded text-gray-300 hover:text-red-400 transition-colors">
+                          className="p-1 rounded text-white/30 hover:text-red-400 transition-colors">
                           <X size={14} />
                         </button>
                       )}
                       <button onClick={() => deleteAppointment(a.id)} title="Remover"
-                        className="p-1 rounded text-gray-300 hover:text-red-400 transition-colors">
+                        className="p-1 rounded text-white/30 hover:text-red-400 transition-colors">
                         <Trash2 size={12} />
                       </button>
                     </div>

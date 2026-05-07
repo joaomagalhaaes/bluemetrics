@@ -24,10 +24,11 @@ export default function SpendChart({ data }: SpendChartProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
-  const gridColor  = isDark ? '#1f2937' : '#f0f7ff'
-  const textColor  = isDark ? '#6b7280' : '#9ca3af'
-  const tooltipBg  = isDark ? '#111827' : '#ffffff'
-  const tooltipBorder = isDark ? '#1f2937' : '#bfdbfe'
+  const gridColor  = 'rgba(255,255,255,0.06)'
+  const textColor  = 'rgba(148,186,255,0.45)'
+  const tooltipBg  = 'rgba(7,16,31,0.9)'
+  const tooltipBorder = 'rgba(255,255,255,0.1)'
+  void isDark
 
   const nameMap: Record<string, string> = {
     spend: 'Verba investida',
@@ -36,9 +37,9 @@ export default function SpendChart({ data }: SpendChartProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 p-6 shadow-sm">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Evolução Mensal</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Investimento, conversas iniciadas e faturamento nos últimos 6 meses</p>
+    <div className="glass-card p-6">
+      <h3 className="text-base font-semibold glass-text-primary mb-1">Evolução Mensal</h3>
+      <p className="text-sm glass-text-muted mb-5">Investimento, conversas iniciadas e faturamento nos últimos 6 meses</p>
 
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -62,7 +63,7 @@ export default function SpendChart({ data }: SpendChartProps) {
             tickFormatter={v => v >= 1000 ? `R$${(v/1000).toFixed(1)}k` : `R$${v}`} />
           <Tooltip
             contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 12 }}
-            labelStyle={{ color: isDark ? '#fff' : '#111', fontWeight: 600 }}
+            labelStyle={{ color: '#e8f0ff', fontWeight: 600 }}
             formatter={(value: number, name: string) => [
               ['spend', 'revenue'].includes(name)
                 ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
