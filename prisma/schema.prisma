@@ -35,6 +35,7 @@ model Client {
   accessToken    String?
   appId          String?
   appSecret      String?
+  pixelId        String?
   tokenExpiresAt DateTime?
   userId         String
   createdAt      DateTime      @default(now())

@@ -5,7 +5,8 @@ import {
   Zap, ShoppingCart, Users, DollarSign, RefreshCw, Eye, CreditCard,
   UserCheck, Search, Star, CheckCircle2, XCircle, AlertTriangle,
   Copy, Check, Code, Clock, MessageCircle, MousePointer, Video,
-  Heart, ChevronDown, ChevronUp
+  Heart, ChevronDown, ChevronUp, Settings, Save, TrendingDown,
+  TrendingUp, Target, BarChart3
 } from 'lucide-react'
 import MetricCard from '@/components/MetricCard'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -28,6 +29,16 @@ interface PixelData {
   spend: number; roas: number; purchaseValue: number
 }
 
+interface CreativeBreakdown {
+  adName: string
+  impressions: number
+  clicks: number
+  ctr: number
+  conversions: number
+  spend: number
+  costPerResult: number
+}
+
 export default function PixelPage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
@@ -45,6 +56,18 @@ export default function PixelPage() {
   const [copied, setCopied] = useState('')
   const [showCode, setShowCode] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
+
+  // Pixel editor
+  const [showPixelEditor, setShowPixelEditor] = useState(false)
+  const [selectedPixelId, setSelectedPixelId] = useState('')
+  const [customPixelId, setCustomPixelId] = useState('')
+  const [savedPixelId, setSavedPixelId] = useState<string | null>(null)
+  const [savingPixel, setSavingPixel] = useState(false)
+  const [pixelSaved, setPixelSaved] = useState(false)
+
+  // Diagnóstico de conversão
+  const [creativeBreakdown, setCreativeBreakdown] = useState<CreativeBreakdown[]>([])
+  const [showDiagnostic, setShowDiagnostic] = useState(false)
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(c => { setClients(c); if (c.length > 0) setClientId(c[0].id) })
@@ -83,7 +106,34 @@ export default function PixelPage() {
       setPixels(json.pixels ?? [])
       setPixelStatus(json.status ?? '')
       setPixelEvents(json.events ?? {})
+      setCreativeBreakdown(json.creativeBreakdown ?? [])
+      setSavedPixelId(json.savedPixelId ?? null)
+      if (json.savedPixelId) {
+        setSelectedPixelId(json.savedPixelId)
+      } else if (json.pixels?.length > 0) {
+        setSelectedPixelId(json.pixels[0].id)
+      }
     } finally { setPixelLoading(false) }
+  }
+
+  async function savePixel() {
+    const pixelToSave = customPixelId.trim() || selectedPixelId
+    if (!pixelToSave || !clientId) return
+    setSavingPixel(true)
+    try {
+      const res = await fetch('/api/meta/pixels/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, pixelId: pixelToSave }),
+      })
+      if (res.ok) {
+        setSavedPixelId(pixelToSave)
+        setPixelSaved(true)
+        setTimeout(() => setPixelSaved(false), 3000)
+        setShowPixelEditor(false)
+        setCustomPixelId('')
+      }
+    } finally { setSavingPixel(false) }
   }
 
   function copyToClipboard(text: string, label: string) {
@@ -95,6 +145,7 @@ export default function PixelPage() {
   const fmt = {
     currency: (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     number: (v: number) => v.toLocaleString('pt-BR'),
+    percent: (v: number) => `${v.toFixed(2)}%`,
   }
 
   const funnelData = data ? [
@@ -107,7 +158,7 @@ export default function PixelPage() {
 
   const hasPixelEvents = funnelData.some(d => d.value > 0)
 
-  // Eventos reais da conta (conversas, cliques etc)
+  // Eventos reais da conta
   const realEvents: Array<{ key: string; label: string; icon: typeof MessageCircle; color: 'blue' | 'green' | 'orange' | 'purple' }> = [
     { key: 'onsite_conversion.messaging_conversation_started_7d', label: 'Conversas iniciadas', icon: MessageCircle, color: 'green' },
     { key: 'onsite_conversion.messaging_first_reply', label: 'Respostas recebidas', icon: MessageCircle, color: 'blue' },
@@ -121,12 +172,167 @@ export default function PixelPage() {
 
   const activeRealEvents = realEvents.filter(e => (pixelEvents[e.key] ?? 0) > 0)
 
+  // Diagnóstico inteligente
+  function getDiagnostics() {
+    const diagnostics: Array<{ type: 'danger' | 'warning' | 'success'; title: string; description: string; icon: typeof TrendingDown }> = []
+
+    const impressions = pixelEvents['impressions'] ?? 0
+    const clicks = pixelEvents['link_click'] ?? 0
+    const landingViews = pixelEvents['landing_page_view'] ?? 0
+    const conversations = pixelEvents['onsite_conversion.messaging_conversation_started_7d'] ?? 0
+    const videoViews = pixelEvents['video_view'] ?? 0
+    const engagement = pixelEvents['post_engagement'] ?? 0
+
+    // Análise do criativo (CTR)
+    if (impressions > 0 && clicks > 0) {
+      const ctr = (clicks / impressions) * 100
+      if (ctr < 1) {
+        diagnostics.push({
+          type: 'danger',
+          title: 'Criativo com baixa performance',
+          description: `CTR de ${ctr.toFixed(2)}% (abaixo de 1%). O criativo (imagem/vídeo) não está chamando atenção. Teste novos criativos com ganchos mais fortes, cores vibrantes ou depoimentos.`,
+          icon: TrendingDown,
+        })
+      } else if (ctr < 2) {
+        diagnostics.push({
+          type: 'warning',
+          title: 'CTR pode melhorar',
+          description: `CTR de ${ctr.toFixed(2)}% (entre 1-2%). O criativo está ok, mas pode melhorar. Teste variações com headlines diferentes ou formatos de vídeo.`,
+          icon: Target,
+        })
+      } else {
+        diagnostics.push({
+          type: 'success',
+          title: 'Criativo performando bem',
+          description: `CTR de ${ctr.toFixed(2)}% (acima de 2%). O criativo está atraindo cliques. Continue testando variações para manter a performance.`,
+          icon: TrendingUp,
+        })
+      }
+    }
+
+    // Análise da VSL / Landing Page
+    if (clicks > 0 && landingViews > 0) {
+      const landingRate = (landingViews / clicks) * 100
+      if (landingRate < 50) {
+        diagnostics.push({
+          type: 'danger',
+          title: 'Página de destino com problema',
+          description: `Apenas ${landingRate.toFixed(0)}% dos cliques viraram visualizações. A página pode estar lenta, com erro ou o link está quebrado. Verifique a velocidade de carregamento.`,
+          icon: TrendingDown,
+        })
+      }
+    }
+
+    // Análise de conversão (página → conversa/compra)
+    if (landingViews > 0 && conversations > 0) {
+      const convRate = (conversations / landingViews) * 100
+      if (convRate < 5) {
+        diagnostics.push({
+          type: 'warning',
+          title: 'Baixa conversão na página',
+          description: `Taxa de ${convRate.toFixed(1)}% de conversão. Visitantes estão vendo a página mas não estão agindo. Pode ser: VSL fraca, oferta pouco clara, botão de CTA escondido, ou preço não competitivo.`,
+          icon: TrendingDown,
+        })
+      } else if (convRate >= 10) {
+        diagnostics.push({
+          type: 'success',
+          title: 'Boa taxa de conversão',
+          description: `${convRate.toFixed(1)}% dos visitantes estão convertendo. A página/VSL está funcionando bem.`,
+          icon: TrendingUp,
+        })
+      }
+    } else if (landingViews > 50 && conversations === 0) {
+      diagnostics.push({
+        type: 'danger',
+        title: 'Nenhuma conversão detectada',
+        description: `${landingViews} pessoas viram a página mas ninguém converteu. Revise: a VSL pode não estar convencendo, a oferta pode não ser atrativa, ou o botão de ação pode estar mal posicionado.`,
+        icon: TrendingDown,
+      })
+    }
+
+    // Análise de vídeo/VSL
+    if (videoViews > 0 && impressions > 0) {
+      const viewRate = (videoViews / impressions) * 100
+      if (viewRate < 15) {
+        diagnostics.push({
+          type: 'warning',
+          title: 'VSL/Vídeo com retenção baixa',
+          description: `Apenas ${viewRate.toFixed(1)}% das impressões assistiram. O início do vídeo precisa de um gancho mais forte nos primeiros 3 segundos.`,
+          icon: Video,
+        })
+      }
+    }
+
+    // Análise de engajamento
+    if (engagement > 0 && impressions > 0) {
+      const engRate = (engagement / impressions) * 100
+      if (engRate < 1) {
+        diagnostics.push({
+          type: 'warning',
+          title: 'Baixo engajamento',
+          description: `Taxa de engajamento de ${engRate.toFixed(2)}%. O conteúdo não está gerando interação. Teste perguntas, enquetes ou conteúdo mais provocativo.`,
+          icon: Heart,
+        })
+      }
+    }
+
+    // Se não há dados suficientes
+    if (diagnostics.length === 0) {
+      diagnostics.push({
+        type: 'warning',
+        title: 'Dados insuficientes para diagnóstico',
+        description: 'Aguarde mais dados de campanhas ativas para gerar um diagnóstico detalhado. O ideal é ter pelo menos 7 dias de dados.',
+        icon: BarChart3,
+      })
+    }
+
+    return diagnostics
+  }
+
+  // Análise por criativo
+  function getCreativeAnalysis() {
+    if (creativeBreakdown.length === 0) return []
+
+    return creativeBreakdown
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 10)
+      .map(ad => {
+        const convRate = ad.clicks > 0 ? (ad.conversions / ad.clicks) * 100 : 0
+        let status: 'good' | 'ok' | 'bad' = 'ok'
+        let diagnosis = ''
+
+        if (ad.ctr < 1) {
+          status = 'bad'
+          diagnosis = 'CTR baixo — criativo não atrai cliques'
+        } else if (ad.ctr >= 2 && convRate >= 5) {
+          status = 'good'
+          diagnosis = 'Performance excelente'
+        } else if (ad.ctr >= 1 && convRate < 2) {
+          status = 'ok'
+          diagnosis = 'Atrai cliques mas não converte — problema na página/oferta'
+        } else if (ad.conversions === 0 && ad.clicks > 20) {
+          status = 'bad'
+          diagnosis = 'Nenhuma conversão — verifique a landing page ou VSL'
+        } else {
+          diagnosis = 'Performance mediana'
+        }
+
+        return { ...ad, convRate, status, diagnosis }
+      })
+  }
+
   const grid = isDark ? '#1f2937' : '#f0f7ff'
   const text = isDark ? '#6b7280' : '#9ca3af'
   const tipBg = isDark ? '#111827' : '#ffffff'
   const tipBorder = isDark ? '#1f2937' : '#bfdbfe'
 
-  const pixel = pixels[0] // Primeiro pixel (geralmente só tem 1)
+  // Usa o pixel salvo ou o primeiro
+  const pixel = savedPixelId
+    ? pixels.find(p => p.id === savedPixelId) ?? pixels[0]
+    : pixels[0]
+
+  const diagnostics = getDiagnostics()
+  const creativeAnalysis = getCreativeAnalysis()
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-6 pb-24">
@@ -136,7 +342,7 @@ export default function PixelPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Zap size={22} className="text-blue-400" /> Pixel & Conversões
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Status do pixel e rastreamento de eventos</p>
+          <p className="text-sm text-gray-400 mt-0.5">Status do pixel, diagnóstico e rastreamento de eventos</p>
         </div>
         <div className="flex items-center gap-2">
           {clients.length > 1 && (
@@ -181,17 +387,97 @@ export default function PixelPage() {
                     <p className="text-xs text-green-600 dark:text-green-400">{pixel.name}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 uppercase font-semibold">Pixel ID</p>
-                  <div className="flex items-center gap-1.5">
-                    <code className="text-sm font-mono text-gray-700 dark:text-gray-300">{pixel.id}</code>
-                    <button onClick={() => copyToClipboard(pixel.id, 'id')}
-                      className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors">
-                      {copied === 'id' ? <Check size={12} className="text-green-500" /> : <Copy size={12} className="text-gray-400" />}
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400 uppercase font-semibold">Pixel ID</p>
+                    <div className="flex items-center gap-1.5">
+                      <code className="text-sm font-mono text-gray-700 dark:text-gray-300">{pixel.id}</code>
+                      <button onClick={() => copyToClipboard(pixel.id, 'id')}
+                        className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors">
+                        {copied === 'id' ? <Check size={12} className="text-green-500" /> : <Copy size={12} className="text-gray-400" />}
+                      </button>
+                    </div>
+                  </div>
+                  {/* Botão alterar pixel */}
+                  <button onClick={() => setShowPixelEditor(!showPixelEditor)}
+                    className="p-2 rounded-xl bg-green-100 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors"
+                    title="Alterar pixel">
+                    <Settings size={16} className="text-green-600 dark:text-green-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Feedback de pixel salvo */}
+              {pixelSaved && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-3 py-2 rounded-lg">
+                  <CheckCircle2 size={14} />
+                  Pixel atualizado com sucesso!
+                </div>
+              )}
+
+              {/* Editor de Pixel */}
+              {showPixelEditor && (
+                <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-700">
+                  <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <Settings size={14} /> Alterar Pixel
+                  </h3>
+
+                  {/* Selecionar de pixels existentes */}
+                  {pixels.length > 1 && (
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Pixels disponíveis na conta:</label>
+                      <div className="space-y-2">
+                        {pixels.map(px => (
+                          <label key={px.id}
+                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                              selectedPixelId === px.id
+                                ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-blue-200'
+                            }`}>
+                            <input type="radio" name="pixel" value={px.id}
+                              checked={selectedPixelId === px.id}
+                              onChange={() => { setSelectedPixelId(px.id); setCustomPixelId('') }}
+                              className="accent-blue-500" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{px.name}</p>
+                              <p className="text-xs text-gray-400 font-mono">{px.id}</p>
+                            </div>
+                            {savedPixelId === px.id && (
+                              <span className="text-[10px] bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-semibold">
+                                Atual
+                              </span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Input manual */}
+                  <div className="mb-3">
+                    <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">
+                      {pixels.length > 1 ? 'Ou insira um Pixel ID manualmente:' : 'Insira o Pixel ID:'}
+                    </label>
+                    <input type="text" value={customPixelId}
+                      onChange={e => { setCustomPixelId(e.target.value); if (e.target.value) setSelectedPixelId('') }}
+                      placeholder="Ex: 123456789012345"
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button onClick={savePixel} disabled={savingPixel || (!selectedPixelId && !customPixelId.trim())}
+                      className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      {savingPixel ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                      Salvar Pixel
+                    </button>
+                    <button onClick={() => setShowPixelEditor(false)}
+                      className="px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                      Cancelar
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Info do pixel */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-green-200 dark:border-green-700">
@@ -205,7 +491,7 @@ export default function PixelPage() {
                   </p>
                   {pixel.lastFiredTime && (() => {
                     const diffDays = Math.floor((Date.now() - new Date(pixel.lastFiredTime).getTime()) / 86400000)
-                    if (diffDays > 7) return <p className="text-[10px] text-amber-500 mt-0.5">⚠️ Há {diffDays} dias sem disparar</p>
+                    if (diffDays > 7) return <p className="text-[10px] text-amber-500 mt-0.5">Há {diffDays} dias sem disparar</p>
                     if (diffDays > 0) return <p className="text-[10px] text-green-500 mt-0.5">Disparou há {diffDays} dia{diffDays > 1 ? 's' : ''}</p>
                     return <p className="text-[10px] text-green-500 mt-0.5">Disparou hoje</p>
                   })()}
@@ -265,15 +551,40 @@ src="https://www.facebook.com/tr?id=${pixel.id}&ev=PageView&noscript=1"
               <div className="w-10 h-10 bg-red-100 dark:bg-red-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
                 <XCircle size={22} className="text-red-500" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-bold text-red-700 dark:text-red-300">Nenhum Pixel encontrado</p>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                  Esta conta de anúncios não tem um Pixel configurado. Crie um no Meta Business Suite.
+                  Esta conta de anúncios não tem um Pixel configurado. Crie um no Meta Business Suite ou insira manualmente.
                 </p>
-                <a href="https://business.facebook.com/events_manager2/list/pixel/" target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 text-xs font-semibold bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
-                  Criar Pixel no Meta
-                </a>
+                <div className="flex items-center gap-2 mt-2">
+                  <a href="https://business.facebook.com/events_manager2/list/pixel/" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                    Criar Pixel no Meta
+                  </a>
+                  <button onClick={() => setShowPixelEditor(!showPixelEditor)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                    <Settings size={12} /> Inserir Pixel ID
+                  </button>
+                </div>
+
+                {/* Editor manual quando não tem pixel */}
+                {showPixelEditor && (
+                  <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Insira o Pixel ID manualmente:</label>
+                    <div className="flex items-center gap-2">
+                      <input type="text" value={customPixelId}
+                        onChange={e => setCustomPixelId(e.target.value)}
+                        placeholder="Ex: 123456789012345"
+                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
+                      />
+                      <button onClick={savePixel} disabled={savingPixel || !customPixelId.trim()}
+                        className="flex items-center gap-1 px-3 py-2 text-xs font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors">
+                        {savingPixel ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : pixelStatus === 'NO_TOKEN' ? (
@@ -299,6 +610,125 @@ src="https://www.facebook.com/tr?id=${pixel.id}&ev=PageView&noscript=1"
       {pixelLoading && (
         <div className="flex items-center justify-center py-8">
           <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* ═══ DIAGNÓSTICO DE CONVERSÃO ═══ */}
+      {!pixelLoading && pixelStatus === 'OK' && (
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-blue-100 dark:border-gray-800 mb-5 overflow-hidden">
+          <button onClick={() => setShowDiagnostic(!showDiagnostic)}
+            className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                <BarChart3 size={16} className="text-purple-500" />
+              </div>
+              <div className="text-left">
+                <h2 className="text-sm font-bold text-gray-800 dark:text-white">Diagnóstico de Conversão</h2>
+                <p className="text-[10px] text-gray-400">Por que as pessoas não estão comprando?</p>
+              </div>
+            </div>
+            {showDiagnostic ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+          </button>
+
+          {showDiagnostic && (
+            <div className="px-5 pb-5 space-y-3">
+              {/* Diagnósticos automáticos */}
+              {diagnostics.map((d, i) => (
+                <div key={i} className={`flex items-start gap-3 p-4 rounded-xl border ${
+                  d.type === 'danger'
+                    ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                    : d.type === 'warning'
+                      ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
+                      : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                }`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    d.type === 'danger' ? 'bg-red-100 dark:bg-red-900/30' :
+                    d.type === 'warning' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                    'bg-green-100 dark:bg-green-900/30'
+                  }`}>
+                    <d.icon size={16} className={
+                      d.type === 'danger' ? 'text-red-500' :
+                      d.type === 'warning' ? 'text-amber-500' :
+                      'text-green-500'
+                    } />
+                  </div>
+                  <div>
+                    <p className={`text-sm font-bold ${
+                      d.type === 'danger' ? 'text-red-700 dark:text-red-300' :
+                      d.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
+                      'text-green-700 dark:text-green-300'
+                    }`}>{d.title}</p>
+                    <p className={`text-xs mt-0.5 ${
+                      d.type === 'danger' ? 'text-red-600 dark:text-red-400' :
+                      d.type === 'warning' ? 'text-amber-600 dark:text-amber-400' :
+                      'text-green-600 dark:text-green-400'
+                    }`}>{d.description}</p>
+                  </div>
+                </div>
+              ))}
+
+              {/* Breakdown por criativo */}
+              {creativeAnalysis.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <Target size={14} className="text-blue-400" />
+                    Performance por Criativo/Anúncio
+                  </h3>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {creativeAnalysis.map((ad, i) => (
+                      <div key={i} className={`p-3 rounded-xl border transition-all ${
+                        ad.status === 'good'
+                          ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
+                          : ad.status === 'bad'
+                            ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10'
+                            : 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30'
+                      }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate">{ad.adName}</p>
+                            <p className={`text-[10px] mt-0.5 font-semibold ${
+                              ad.status === 'good' ? 'text-green-500' :
+                              ad.status === 'bad' ? 'text-red-500' :
+                              'text-amber-500'
+                            }`}>{ad.diagnosis}</p>
+                          </div>
+                          <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            ad.status === 'good' ? 'bg-green-100 dark:bg-green-900/40 text-green-600' :
+                            ad.status === 'bad' ? 'bg-red-100 dark:bg-red-900/40 text-red-600' :
+                            'bg-amber-100 dark:bg-amber-900/40 text-amber-600'
+                          }`}>
+                            {ad.status === 'good' ? 'Bom' : ad.status === 'bad' ? 'Ruim' : 'Regular'}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                          <div>
+                            <p className="text-[9px] text-gray-400 uppercase">CTR</p>
+                            <p className={`text-xs font-bold ${ad.ctr >= 2 ? 'text-green-500' : ad.ctr < 1 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {fmt.percent(ad.ctr)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-gray-400 uppercase">Cliques</p>
+                            <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{fmt.number(ad.clicks)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-gray-400 uppercase">Conversões</p>
+                            <p className={`text-xs font-bold ${ad.conversions > 0 ? 'text-green-500' : 'text-gray-400'}`}>
+                              {fmt.number(ad.conversions)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-gray-400 uppercase">Gasto</p>
+                            <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{fmt.currency(ad.spend)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
